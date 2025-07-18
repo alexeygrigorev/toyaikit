@@ -1,18 +1,37 @@
+from openai import OpenAI
 
-class ChatAssistant:
-    def __init__(self, tools, developer_prompt, chat_interface, client):
+from toyaikit.tools import Tools
+from toyaikit.chat.ipython import ChatInterface
+
+
+class LLMClient:
+    def send_request(self, chat_messages):
+        raise NotImplementedError("Subclasses must implement this method")
+
+class OpenAIClient(LLMClient):
+    def __init__(self, tools: Tools, model: str = "gpt-4o-mini", client: OpenAI = None):
+        self.model = model
         self.tools = tools
-        self.developer_prompt = developer_prompt
-        self.chat_interface = chat_interface
-        self.client = client
-    
-    def gpt(self, chat_messages):
+
+        if client is None:
+            self.client = OpenAI()
+        else:
+            self.client = client
+
+    def send_request(self, chat_messages):
         return self.client.responses.create(
-            model='gpt-4o-mini',
+            model=self.model,
             input=chat_messages,
             tools=self.tools.get_tools(),
         )
 
+class ChatAssistant:
+    def __init__(self, tools: Tools, developer_prompt: str, chat_interface: ChatInterface, llm_client: LLMClient):
+        self.tools = tools
+        self.developer_prompt = developer_prompt
+        self.chat_interface = chat_interface
+        self.llm_client = llm_client
+    
     def run(self):
         chat_messages = [
             {"role": "developer", "content": self.developer_prompt},
@@ -21,7 +40,7 @@ class ChatAssistant:
         # Chat loop
         while True:
             question = self.chat_interface.input()
-            if question.strip().lower() == 'stop':  
+            if question.lower() == 'stop':
                 self.chat_interface.display("Chat ended.")
                 break
 
@@ -29,7 +48,7 @@ class ChatAssistant:
             chat_messages.append(message)
 
             while True:  # inner request loop
-                response = self.gpt(chat_messages)
+                response = self.llm_client.send_request(chat_messages)
 
                 has_messages = False
 

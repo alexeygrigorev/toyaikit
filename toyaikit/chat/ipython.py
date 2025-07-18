@@ -8,10 +8,24 @@ def shorten(text, max_length=50):
     return text[:max_length - 3] + "..."
 
 
+class ChatInterface:
+    def input(self):
+        raise NotImplementedError("Subclasses must implement this method")
+
+    def display(self, message):
+        raise NotImplementedError("Subclasses must implement this method")
+    
+    def display_function_call(self, entry, result):
+        raise NotImplementedError("Subclasses must implement this method")
+    
+    def display_response(self, entry):
+        raise NotImplementedError("Subclasses must implement this method")
+
+
 class IPythonChatInterface:
     def input(self):
         question = input("You:")
-        return question
+        return question.strip()
     
     def display(self, message):
         print(message)

@@ -31,9 +31,10 @@ requires-python = ">=3.9"
 dependencies = [
     "ipython",
     "markdown",
+    "openai>=1.97.0",
 ]
 
-[project.optional-dependencies]
+[dependency-groups]
 dev = [
     "requests",
     "hatch",
