@@ -1,29 +1,6 @@
-from openai import OpenAI
-
 from toyaikit.tools import Tools
 from toyaikit.chat.ipython import ChatInterface
-
-
-class LLMClient:
-    def send_request(self, chat_messages):
-        raise NotImplementedError("Subclasses must implement this method")
-
-class OpenAIClient(LLMClient):
-    def __init__(self, tools: Tools, model: str = "gpt-4o-mini", client: OpenAI = None):
-        self.model = model
-        self.tools = tools
-
-        if client is None:
-            self.client = OpenAI()
-        else:
-            self.client = client
-
-    def send_request(self, chat_messages):
-        return self.client.responses.create(
-            model=self.model,
-            input=chat_messages,
-            tools=self.tools.get_tools(),
-        )
+from toyaikit.chat.llm import LLMClient
 
 class ChatAssistant:
     def __init__(self, tools: Tools, developer_prompt: str, chat_interface: ChatInterface, llm_client: LLMClient):
@@ -48,7 +25,7 @@ class ChatAssistant:
             chat_messages.append(message)
 
             while True:  # inner request loop
-                response = self.llm_client.send_request(chat_messages)
+                response = self.llm_client.send_request(chat_messages, self.tools)
 
                 has_function_calls = False
 
