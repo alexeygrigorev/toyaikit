@@ -1,5 +1,6 @@
 from unittest.mock import MagicMock, patch, call
-from toyaikit.chat.chat import OpenAIClient, ChatAssistant
+from toyaikit.chat.chat import ChatAssistant
+from toyaikit.chat.llm import OpenAIClient
 
 
 class AttrDict(dict):
@@ -9,25 +10,30 @@ class AttrDict(dict):
         self[key] = value
 
 
-# Test OpenAIClient with mocked OpenAI and Tools
-@patch('toyaikit.chat.chat.OpenAI')
-def test_openaiclient_send_request(mock_openai):
+def test_openaiclient_send_request():
     mock_tools = MagicMock()
-    mock_tools.get_tools.return_value = ["tool1"]
-    mock_client = MagicMock()
-    mock_openai.return_value = mock_client
-    mock_response = MagicMock()
-    mock_client.responses.create.return_value = mock_response
+    tools_list = [{"name": "tool1", "description": "tool1_description"}]
+    mock_tools.get_tools.return_value = tools_list
 
-    client = OpenAIClient(tools=mock_tools, model="gpt-4o-mini")
+    mock_openai = MagicMock()
+    mock_response = MagicMock()
+    mock_openai.responses.create.return_value = mock_response
+
+    # Pass the mock_openai directly to OpenAIClient
+    client = OpenAIClient(
+        model="gpt-4o-mini",
+        client=mock_openai
+    )
+    
     chat_messages = [
         {"role": "user", "content": "hi"}
     ]
-    result = client.send_request(chat_messages)
-    mock_client.responses.create.assert_called_once_with(
+    result = client.send_request(chat_messages, tools=mock_tools)
+
+    mock_openai.responses.create.assert_called_once_with(
         model="gpt-4o-mini",
         input=chat_messages,
-        tools=["tool1"]
+        tools=tools_list
     )
     assert result == mock_response
 
