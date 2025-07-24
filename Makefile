@@ -4,7 +4,7 @@ test:
 	uv run pytest
 
 setup:
-	uv sync --extra dev
+	uv sync --dev
 
 shell:
 	uv shell
