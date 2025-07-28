@@ -9,46 +9,68 @@ def shorten(text, max_length=50):
 
 
 class ChatInterface:
-    def input(self):
+    def input(self) -> str:
+        """
+        Get input from the user.
+        Returns:
+            str: The user's input.
+        """
         raise NotImplementedError("Subclasses must implement this method")
 
-    def display(self, message):
+    def display(self, message: str) -> None:
+        """
+        Display a message.
+        Args:
+            message: The message to display.
+        """
         raise NotImplementedError("Subclasses must implement this method")
     
-    def display_function_call(self, entry, result):
+    def display_function_call(self, function_name: str, arguments: str, result: str) -> None:
+        """
+        Display a function call.
+        Args:
+            function_name: The name of the function to call.
+            arguments: The arguments to pass to the function.
+            result: The result of the function call.
+        """
         raise NotImplementedError("Subclasses must implement this method")
     
-    def display_response(self, entry):
+    def display_response(self, markdown_text: str) -> None:
+        """
+        Display a response.
+        Args:
+            markdown_text: The markdown text to display.
+        """
         raise NotImplementedError("Subclasses must implement this method")
 
 
 class IPythonChatInterface:
-    def input(self):
+    def input(self) -> str:
         question = input("You:")
         return question.strip()
     
-    def display(self, message):
+    def display(self, message: str) -> None:
         print(message)
 
-    def display_function_call(self, entry, result):
+    def display_function_call(self, function_name: str, arguments: str, result: str) -> None:
         call_html = f"""
             <details>
-            <summary>Function call: <tt>{entry.name}({shorten(entry.arguments)})</tt></summary>
+            <summary>Function call: <tt>{function_name}({shorten(arguments)})</tt></summary>
             <div>
                 <b>Call</b>
-                <pre>{entry}</pre>
+                <pre>{arguments}</pre>
             </div>
             <div>
                 <b>Output</b>
-                <pre>{result['output']}</pre>
+                <pre>{result}</pre>
             </div>
             
             </details>
         """
         display(HTML(call_html))
 
-    def display_response(self, entry):
-        response_html = markdown.markdown(entry.content[0].text)
+    def display_response(self, markdown_text: str) -> None:
+        response_html = markdown.markdown(markdown_text)
         html = f"""
             <div>
                 <div><b>Assistant:</b></div>

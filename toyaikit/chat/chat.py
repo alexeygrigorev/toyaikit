@@ -35,11 +35,12 @@ class ChatAssistant:
                     if entry.type == "function_call":
                         result = self.tools.function_call(entry)
                         chat_messages.append(result)
-                        self.chat_interface.display_function_call(entry, result)
+                        self.chat_interface.display_function_call(entry.name, entry.arguments, result)
                         has_function_calls = True
 
                     elif entry.type == "message":
-                        self.chat_interface.display_response(entry)
+                        markdown_text = entry.content[0].text
+                        self.chat_interface.display_response(markdown_text)
 
                 if not has_function_calls:
                     break 

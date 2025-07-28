@@ -2,12 +2,7 @@ from unittest.mock import MagicMock, patch, call
 from toyaikit.chat.chat import ChatAssistant
 from toyaikit.chat.llm import OpenAIClient
 
-
-class AttrDict(dict):
-    def __getattr__(self, item):
-        return self[item]
-    def __setattr__(self, key, value):
-        self[key] = value
+from types import SimpleNamespace as D
 
 
 def test_openaiclient_send_request():
@@ -53,9 +48,9 @@ def test_chatassistant_run_one_cycle(monkeypatch):
 
     mock_llm_client = MagicMock()
     
-    # Simulate LLM response: one message
-    message = AttrDict({"type": "message", "content": "hi"})
-    response = AttrDict({'output': [message]})
+    # Simulate LLM response: one message with content as list of objects with text attribute
+    message = D(type="message", content=[D(text="hi")])
+    response = D(output=[message])
 
     mock_llm_client.send_request.return_value = response
 
@@ -85,9 +80,9 @@ def test_chatassistant_function_call_flow_with_fakes():
 
     mock_llm_client = MagicMock()
 
-    function_call1 = AttrDict({'type': 'function_call', 'name': 'func1', 'arguments': '{}'})
-    function_call2 = AttrDict({'type': 'function_call', 'name': 'func2', 'arguments': '{}'})
-    message = AttrDict({'type': 'message', 'content': [{'text': 'Here is your answer.'}]})
+    function_call1 = D(type='function_call', name='func1', arguments='{}')
+    function_call2 = D(type='function_call', name='func2', arguments='{}')
+    message = D(type='message', content=[D(text='Here is your answer.')])
     
     mock_llm_client.send_request.side_effect = [
         MagicMock(output=[function_call1, function_call2]),
@@ -110,16 +105,16 @@ def test_chatassistant_function_call_flow_with_fakes():
         call(function_call2)
     ])
 
-    # Check display_function_call called for each function call
+    # Check display_function_call called for each function call with correct signature
     assert mock_interface.display_function_call.call_count == 2
     mock_interface.display_function_call.assert_has_calls([
-        call(function_call1, call1),
-        call(function_call2, call2),
+        call('func1', '{}', call1),
+        call('func2', '{}', call2),
     ])
 
-    # Check display_response called for the message
+    # Check display_response called for the message with markdown text
     assert mock_interface.display_response.call_count == 1
-    mock_interface.display_response.assert_called_with(message)
+    mock_interface.display_response.assert_called_with('Here is your answer.')
 
     # Check input() called at least twice ("ask" and "stop")
     assert mock_interface.input.call_count >= 2
@@ -131,10 +126,10 @@ def test_chatassistant_order_message_and_function_calls():
 
     mock_llm_client = MagicMock()
 
-    message1 = AttrDict({'type': 'message', 'content': [{'text': 'First message.'}]})
-    function_call1 = AttrDict({'type': 'function_call', 'name': 'func1', 'arguments': '{}'})
-    function_call2 = AttrDict({'type': 'function_call', 'name': 'func2', 'arguments': '{}'})
-    message2 = AttrDict({'type': 'message', 'content': [{'text': 'Second message.'}]})
+    message1 = D(type='message', content=[D(text='First message.')])
+    function_call1 = D(type='function_call', name='func1', arguments='{}')
+    function_call2 = D(type='function_call', name='func2', arguments='{}')
+    message2 = D(type='message', content=[D(text='Second message.')])
 
     # The LLM first returns a message and two function calls, then a message
     mock_llm_client.send_request.side_effect = [
@@ -173,27 +168,27 @@ def test_chatassistant_order_message_and_function_calls():
         call(function_call2)
     ])
 
-    # Check display_response called for each message
+    # Check display_response called for each message with markdown text
     assert mock_interface.display_response.call_count == 2
     mock_interface.display_response.assert_has_calls([
-        call(message1),
-        call(message2)]
+        call('First message.'),
+        call('Second message.')]
     )
 
-    # Check display_function_call called for each function call
+    # Check display_function_call called for each function call with correct signature
     assert mock_interface.display_function_call.call_count == 2
     mock_interface.display_function_call.assert_has_calls([
-        call(function_call1, call1),
-        call(function_call2, call2),
+        call('func1', '{}', call1),
+        call('func2', '{}', call2),
     ])
 
     # Check the order of all relevant calls
     expected_order = [
         call.input(),
-        call.display_response(message1),
-        call.display_function_call(function_call1, call1),
-        call.display_function_call(function_call2, call2),
-        call.display_response(message2),
+        call.display_response('First message.'),
+        call.display_function_call('func1', '{}', call1),
+        call.display_function_call('func2', '{}', call2),
+        call.display_response('Second message.'),
         call.input(),
     ]
     actual_calls = [c for c in mock_interface.mock_calls if c in expected_order]
