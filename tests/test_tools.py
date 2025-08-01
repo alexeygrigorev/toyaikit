@@ -292,3 +292,82 @@ def test_auto_schema_get_tools_output_class_instance_multiple_methods():
     }
     assert bar_schema == expected_bar
     assert foo_schema == expected_foo
+
+
+def test_chat_completions_api_basic():
+    """Simple test for chat completions API with auto schema inference."""
+    
+    def get_weather(location: str) -> str:
+        """Get weather for a location."""
+        return f"Weather in {location}: sunny"
+    
+    tools = Tools(api='chat.completions')
+    tools.add_tool(get_weather)  # Let it infer schema
+    
+    # Check tools are registered
+    tool_names = {tool["function"]["name"] for tool in tools.get_tools()}
+    assert "get_weather" in tool_names
+    
+    # Test function call
+    weather_args = json.dumps({"location": "Paris"})
+    weather_resp = ToolCallResponse("get_weather", weather_args)
+    result = tools.function_call(weather_resp)
+    
+    # Should return chat completions format
+    assert result["role"] == "tool"
+    assert "tool_call_id" in result
+    assert "content" in result
+    assert "Weather in Paris: sunny" in result["content"]
+
+
+def test_chat_completions_api_multiple_tools():
+    """Test multiple tools with chat completions API."""
+    
+    def add(a: int, b: int) -> int:
+        return a + b
+    
+    def multiply(x: int, y: int) -> int:
+        return x * y
+    
+    tools = Tools(api='chat.completions')
+    tools.add_tool(add)
+    tools.add_tool(multiply)
+    
+    # Check both tools are registered
+    tool_names = {tool["function"]["name"] for tool in tools.get_tools()}
+    assert tool_names == {"add", "multiply"}
+    
+    # Test add function
+    add_args = json.dumps({"a": 5, "b": 3})
+    add_resp = ToolCallResponse("add", add_args)
+    result = tools.function_call(add_resp)
+    assert json.loads(result["content"]) == 8
+    
+    # Test multiply function
+    mul_args = json.dumps({"x": 4, "y": 6})
+    mul_resp = ToolCallResponse("multiply", mul_args)
+    result = tools.function_call(mul_resp)
+    assert json.loads(result["content"]) == 24
+
+
+def test_chat_completions_tools_format():
+    """Test that chat completions API returns tools in correct format."""
+    
+    def get_weather(location: str) -> str:
+        """Get weather for a location."""
+        return f"Weather in {location}: sunny"
+    
+    tools = Tools(api='chat.completions')
+    tools.add_tool(get_weather)
+    
+    tools_list = tools.get_tools()
+    assert isinstance(tools_list, list)
+    assert len(tools_list) == 1
+    
+    # Check the format matches chat completions API
+    tool = tools_list[0]
+    assert tool["type"] == "function"
+    assert "function" in tool
+    assert tool["function"]["name"] == "get_weather"
+    assert tool["function"]["description"] == "Get weather for a location."
+    assert "parameters" in tool["function"]
