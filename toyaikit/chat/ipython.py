@@ -1,4 +1,5 @@
-from IPython.display import display, HTML
+from IPython.display import HTML
+from IPython.display import display as ip_display
 import markdown
 
 
@@ -67,7 +68,17 @@ class IPythonChatInterface:
             
             </details>
         """
-        display(HTML(call_html))
+        ip_display(HTML(call_html))
+
+    def display_reasoning(self, markdown_text: str) -> None:
+        reasoning_html = markdown.markdown(markdown_text)
+        html = f"""
+            <details>
+                <summary>Reasoning</summary>
+                <div>{reasoning_html}</div>
+            </details>
+        """
+        ip_display(HTML(html))
 
     def display_response(self, markdown_text: str) -> None:
         response_html = markdown.markdown(markdown_text)
@@ -77,4 +88,4 @@ class IPythonChatInterface:
                 <div>{response_html}</div>
             </div>
         """
-        display(HTML(html)) 
+        ip_display(HTML(html)) 

@@ -184,19 +184,21 @@ def test_function_call_errors():
     
     # Unknown tool
     bad_resp = ToolCallResponse("not_a_tool", json.dumps({}))
-    try:
-        tools.function_call(bad_resp)
-        assert False, "Should raise KeyError"
-    except KeyError:
-        pass
+    result = tools.function_call(bad_resp)
+    assert result["type"] == "function_call_output"
+    assert result["call_id"] == bad_resp.call_id
+    error_data = json.loads(result["output"])
+    assert "error" in error_data
+    assert "KeyError" in error_data["error"]
     
     # Bad arguments
     bad_args = ToolCallResponse("foo", json.dumps({"b": 1}))
-    try:
-        tools.function_call(bad_args)
-        assert False, "Should raise TypeError"
-    except TypeError:
-        pass
+    result = tools.function_call(bad_args)
+    assert result["type"] == "function_call_output"
+    assert result["call_id"] == bad_args.call_id
+    error_data = json.loads(result["output"])
+    assert "error" in error_data
+    assert "TypeError" in error_data["error"]
 
 
 def test_add_tool_auto_schema():

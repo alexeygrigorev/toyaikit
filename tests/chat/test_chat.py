@@ -1,6 +1,6 @@
 from unittest.mock import MagicMock, patch, call
 from toyaikit.chat.chat import ChatAssistant
-from toyaikit.chat.llm import OpenAIClient
+from toyaikit.llm import OpenAIClient
 
 from types import SimpleNamespace as D
 

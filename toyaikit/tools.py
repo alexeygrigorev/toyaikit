@@ -69,18 +69,29 @@ class Tools:
             tool_call_response: The tool call response from the LLM.
 
         Returns:
-            dict: The result of the function call.
+            dict: The result of the function call or error details if the call fails.
         """
-
-        function_name = tool_call_response.name
-        arguments = json.loads(tool_call_response.arguments)
-        f = self.functions[function_name]
-        result = f(**arguments)
-        return {
-            "type": "function_call_output",
-            "call_id": tool_call_response.call_id,
-            "output": json.dumps(result, indent=2),
-        } 
+        try:
+            function_name = tool_call_response.name
+            arguments = json.loads(tool_call_response.arguments)
+            f = self.functions[function_name]
+            result = f(**arguments)
+            return {
+                "type": "function_call_output", 
+                "call_id": tool_call_response.call_id,
+                "output": json.dumps(result, indent=2),
+            }
+        except Exception as e:
+            error_name = e.__class__.__name__
+            error_message = str(e)
+            error = {
+                "error": f"{error_name}: {error_message}"
+            }
+            return {
+                "type": "function_call_output",
+                "call_id": tool_call_response.call_id, 
+                "output": json.dumps(error, indent=2),
+            }
 
 
 def generate_function_schema(func, description=None):
@@ -147,6 +158,23 @@ def python_type_to_json_type(py_type):
         return "string"  # fallback for unknown types
 
 
+def get_instance_methods(instance):
+    """
+    Get all public methods from an instance.
+
+    Args:
+        instance: The instance to get methods from.
+
+    Returns:
+        list: A list of method objects from the instance that don't start with underscore.
+    """
+    methods = []
+    for name, member in inspect.getmembers(instance, predicate=inspect.ismethod):
+        if not name.startswith("_"):
+            methods.append(member)
+    return methods
+
+
 def generate_schemas_from_instance(instance):
     """
     Generate schemas for all methods in an instance.
@@ -157,11 +185,11 @@ def generate_schemas_from_instance(instance):
     Returns:
         list: A list of tuples, each containing a function and its schema.
     """
+    methods = get_instance_methods(instance)
 
-    instance_tools = []
-    for name, member in inspect.getmembers(instance, predicate=inspect.ismethod):
-        if name.startswith("_"):
-            continue
-        schema = generate_function_schema(member)
-        instance_tools.append((member, schema))
-    return instance_tools
+    result = []
+    for method in methods:
+        schema = generate_function_schema(method)
+        result.append((method, schema))
+
+    return result
