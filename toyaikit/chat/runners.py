@@ -144,7 +144,6 @@ class PydanticAIRunner(ChatRunner):
             tool_calls = {}
 
             for m in messages:
-
                 for part in m.parts:
                     kind = part.part_kind
 
@@ -189,39 +188,34 @@ class OpenAIChatCompletionsRunner(ChatRunner):
         self.chat_interface = chat_interface
         self.llm_client = llm_client
 
-
-
     def convert_function_output_to_tool_message(self, data):
         return {
             "role": "tool",
             "tool_call_id": data["call_id"],
-            "content": data["output"]
+            "content": data["output"],
         }
 
     def run(self) -> None:
         chat_messages = [
             {"role": "system", "content": self.developer_prompt},
-        ]    
+        ]
 
         while True:
             user_input = self.chat_interface.input()
-            if user_input.lower() == 'stop':
-                self.chat_interface.display('Chat ended')
+            if user_input.lower() == "stop":
+                self.chat_interface.display("Chat ended")
                 break
 
             chat_messages.append({"role": "user", "content": user_input})
 
             while True:
-                reponse = self.llm_client.send_request(
-                    chat_messages,
-                    self.tools
-                )
+                reponse = self.llm_client.send_request(chat_messages, self.tools)
 
                 first_choice = reponse.choices[0]
                 message_response = first_choice.message
                 chat_messages.append(message_response)
 
-                if hasattr(message_response, 'reasoning_content'):
+                if hasattr(message_response, "reasoning_content"):
                     reasoning = message_response.reasoning_content.strip()
                     if reasoning != "":
                         self.chat_interface.display_reasoning(reasoning)
@@ -230,25 +224,30 @@ class OpenAIChatCompletionsRunner(ChatRunner):
                 if content != "":
                     self.chat_interface.display_response(content)
 
-                if hasattr(message_response, 'tool_calls'):
+                calls = []
+
+                if hasattr(message_response, "tool_calls"):
                     calls = message_response.tool_calls
-                else:
-                    calls = []
-                
+
+                if calls is None:
+                    break
+
                 if len(calls) == 0:
                     break
-                
+
                 for call in calls:
                     function_call = D(call.function.model_dump())
-                    function_call['call_id'] = call.id
+                    function_call["call_id"] = call.id
 
                     call_result = self.tools.function_call(function_call)
-                    call_result = self.convert_function_output_to_tool_message(call_result)
+                    call_result = self.convert_function_output_to_tool_message(
+                        call_result
+                    )
 
                     chat_messages.append(call_result)
 
                     self.chat_interface.display_function_call(
                         function_name=function_call.name,
-                        arguments=function_call['arguments'],
-                        result=call_result['content']
+                        arguments=function_call["arguments"],
+                        result=call_result["content"],
                     )
