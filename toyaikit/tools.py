@@ -175,6 +175,25 @@ def get_instance_methods(instance):
     return methods
 
 
+def wrap_instance_methods(decorator, instance):
+    """
+    Wrap all methods of an instance with a decorator.
+
+    Args:
+        decorator: A decorator function to apply to each method
+        instance: The instance whose methods will be wrapped
+
+    Returns:
+        A list of decorated methods from the instance
+    """
+    methods = get_instance_methods(instance)
+    results = []
+    for method in methods:
+        tool = decorator(method)
+        results.append(tool)
+    return results
+
+
 def generate_schemas_from_instance(instance):
     """
     Generate schemas for all methods in an instance.
