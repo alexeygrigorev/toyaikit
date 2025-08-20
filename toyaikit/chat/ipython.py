@@ -44,6 +44,13 @@ class ChatInterface:
         """
         raise NotImplementedError("Subclasses must implement this method")
 
+    def display_reasoning(self, markdown_text: str) -> None:
+        """
+        Display a reasoning.
+        Args:
+            markdown_text: The markdown text to display.
+        """
+        raise NotImplementedError("Subclasses must implement this method")
 
 class IPythonChatInterface:
     def input(self) -> str:

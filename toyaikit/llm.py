@@ -1,6 +1,7 @@
 from typing import List
 from openai import OpenAI
 from toyaikit.tools import Tools
+from pydantic import BaseModel
 
 
 class LLMClient:
@@ -9,13 +10,20 @@ class LLMClient:
 
 
 class OpenAIClient(LLMClient):
-    def __init__(self, model: str = "gpt-4o-mini", client: OpenAI = None):
+    def __init__(
+        self,
+        model: str = "gpt-4o-mini",
+        client: OpenAI = None,
+        extra_kwargs: dict = None,
+    ):
         self.model = model
 
         if client is None:
             self.client = OpenAI()
         else:
             self.client = client
+
+        self.extra_kwargs = extra_kwargs or {}
 
     def send_request(self, chat_messages: List, tools: Tools = None):
         tools_list = []
@@ -26,6 +34,7 @@ class OpenAIClient(LLMClient):
             model=self.model,
             input=chat_messages,
             tools=tools_list,
+            **self.extra_kwargs,
         )
 
 
@@ -66,7 +75,9 @@ class OpenAIChatCompletionsClient(LLMClient):
 
         return chat_functions
 
-    def send_request(self, chat_messages: List, tools: Tools = None):
+    def send_request(
+        self, chat_messages: List, tools: Tools = None, output_format: BaseModel = None
+    ):
         tools_list = []
         if tools is not None:
             tools_requests_format = tools.get_tools()
@@ -77,4 +88,3 @@ class OpenAIChatCompletionsClient(LLMClient):
             messages=chat_messages,
             tools=tools_list,
         )
-
