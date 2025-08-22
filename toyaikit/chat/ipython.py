@@ -1,6 +1,7 @@
 from IPython.display import HTML
 from IPython.display import display as ip_display
-import markdown
+import mistune
+
 
 
 def shorten(text, max_length=50):
@@ -52,6 +53,7 @@ class ChatInterface:
         """
         raise NotImplementedError("Subclasses must implement this method")
 
+
 class IPythonChatInterface:
     def input(self) -> str:
         question = input("You:")
@@ -78,7 +80,7 @@ class IPythonChatInterface:
         ip_display(HTML(call_html))
 
     def display_reasoning(self, markdown_text: str) -> None:
-        reasoning_html = markdown.markdown(markdown_text)
+        reasoning_html = mistune.html(markdown_text)
         html = f"""
             <details>
                 <summary>Reasoning</summary>
@@ -88,7 +90,7 @@ class IPythonChatInterface:
         ip_display(HTML(html))
 
     def display_response(self, markdown_text: str) -> None:
-        response_html = markdown.markdown(markdown_text)
+        response_html = mistune.html(markdown_text)
         html = f"""
             <div>
                 <div><b>Assistant:</b></div>
