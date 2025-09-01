@@ -1,4 +1,6 @@
+import time
 from typing import Dict, Any, List, Optional
+
 from toyaikit.mcp.transport import MCPTransport
 
 
@@ -85,8 +87,11 @@ class MCPClient:
         self.is_initialized = True
         print("Handshake completed successfully")
 
-    def full_initialize(self):
+    def full_initialize(self, server_start_pause: float = 0.5):
         self.start_server()
+        if server_start_pause > 0:
+            print(f"Waiting {server_start_pause} seconds for server to stabilize...")
+            time.sleep(server_start_pause)
         self.initialize()
         self.initialized()
         self.get_tools()

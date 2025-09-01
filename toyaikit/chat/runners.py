@@ -4,7 +4,7 @@ from typing import Callable
 from abc import ABC, abstractmethod
 
 from toyaikit.tools import Tools
-from toyaikit.chat.ipython import ChatInterface
+from toyaikit.chat.interface import ChatInterface
 from toyaikit.llm import LLMClient
 
 
@@ -30,6 +30,10 @@ class RunnerCallback(ABC):
         """
         Called when a reasoning is received.
         """
+        pass
+
+    @abstractmethod
+    def on_response(self, response):
         pass
 
 
@@ -69,6 +73,10 @@ class DisplayingRunnerCallback(RunnerCallback):
 
     def on_reasoning(self, reasoning):
         self.chat_interface.display_reasoning(reasoning)
+
+    def on_response(self, response):
+        log = f"response with {len(response.output)}, {response}"
+        self.chat_interface.display(log)
 
 
 class OpenAIResponsesRunner(ChatRunner):
@@ -114,9 +122,9 @@ class OpenAIResponsesRunner(ChatRunner):
 
             has_function_calls = False
 
-            for entry in response.output:
-                chat_messages.append(entry)
+            chat_messages.extend(response.output)
 
+            for entry in response.output:
                 if entry.type == "function_call":
                     result = self.tools.function_call(entry)
                     chat_messages.append(result)
@@ -171,7 +179,7 @@ class OpenAIAgentsSDKRunner(ChatRunner):
 
     def __init__(self, chat_interface: ChatInterface, agent):
         try:
-            from agents import Runner, SQLiteSession
+            from agents import Runner
         except ImportError:
             raise ImportError(
                 "Please run 'pip install openai-agents' to use this feature"
@@ -179,11 +187,13 @@ class OpenAIAgentsSDKRunner(ChatRunner):
 
         self.agent = agent
         self.runner = Runner()
-        session_id = f"chat_session_{uuid.uuid4().hex[:8]}"
-        self.session = SQLiteSession(session_id)
         self.chat_interface = chat_interface
 
     async def run(self) -> None:
+        from agents import SQLiteSession
+        session_id = f"chat_session_{uuid.uuid4().hex[:8]}"
+        session = SQLiteSession(session_id)
+
         while True:
             user_input = self.chat_interface.input()
             if user_input.lower() == "stop":
@@ -191,22 +201,38 @@ class OpenAIAgentsSDKRunner(ChatRunner):
                 break
 
             result = await self.runner.run(
-                self.agent, input=user_input, session=self.session
+                self.agent, input=user_input, session=session
             )
 
             func_calls = {}
+            for ni in result.new_items:
+                raw = ni.raw_item
+                if ni.type == "tool_call_item":
+                    func_calls[raw.call_id] = raw
 
             for ni in result.new_items:
                 raw = ni.raw_item
 
-                if ni.type == "tool_call_item":
-                    func_calls[raw.call_id] = raw
+                if ni.type == "handoff_call_item":
+                    raw = ni.raw_item
+                    self.chat_interface.display(f"handoff: {raw.name}")
+
+                if ni.type == "handoff_output_item":
+                    self.chat_interface.display(
+                        f"handoff: {ni.target_agent.name} -> {ni.source_agent.name} successful"
+                    )
 
                 if ni.type == "tool_call_output_item":
-                    func_call = func_calls[raw["call_id"]]
-                    self.chat_interface.display_function_call(
-                        func_call.name, func_call.arguments, raw["output"]
-                    )
+                    call_id = raw["call_id"]
+                    if call_id not in func_calls:
+                        self.chat_interface.display(
+                            f"error: cannot find the call parameters for {call_id=}"
+                        )
+                    else:
+                        func_call = func_calls[call_id]
+                        self.chat_interface.display_function_call(
+                            func_call.name, func_call.arguments, raw["output"]
+                        )
 
                 if ni.type == "message_output_item":
                     md = raw.content[0].text
@@ -257,14 +283,6 @@ class PydanticAIRunner(ChatRunner):
                         )
 
             message_history.extend(messages)
-
-
-class D(dict):
-    def __getattr__(self, key):
-        value = self.get(key)
-        if isinstance(value, dict):
-            return D(value)
-        return value
 
 
 class OpenAIChatCompletionsRunner(ChatRunner):
@@ -348,7 +366,7 @@ class OpenAIChatCompletionsRunner(ChatRunner):
 
         return chat_messages[prev_messages_len:]
 
-    def run(self) -> None:
+    def run(self, stop_criteria: Callable = None) -> list:
         chat_messages = [
             {"role": "system", "content": self.developer_prompt},
         ]
@@ -365,4 +383,8 @@ class OpenAIChatCompletionsRunner(ChatRunner):
                 callback=self.displaying_callback,
             )
 
-            chat_messages.append(new_messages)
+            chat_messages.extend(new_messages)
+            if stop_criteria and stop_criteria(new_messages):
+                break
+
+        return chat_messages

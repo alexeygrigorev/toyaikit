@@ -1,6 +1,6 @@
 from toyaikit.tools import Tools
 from toyaikit.llm import LLMClient
-from toyaikit.chat.ipython import ChatInterface
+from toyaikit.chat.interface import ChatInterface
 from toyaikit.chat.runners import OpenAIResponsesRunner
 
 

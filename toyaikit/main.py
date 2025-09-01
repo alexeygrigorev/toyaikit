@@ -1,7 +1,7 @@
 from openai import OpenAI
 
 from toyaikit.chat.chat import OpenAIClient, ChatAssistant
-from toyaikit.chat.ipython import IPythonChatInterface
+from toyaikit.chat.interface import IPythonChatInterface
 from toyaikit.tools import Tools
 
 

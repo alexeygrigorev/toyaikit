@@ -1,6 +1,6 @@
 from toyaikit.chat.chat import ChatAssistant
 from toyaikit.chat.llm import OpenAIClient
-from toyaikit.chat.ipython import IPythonChatInterface
+from toyaikit.chat.interface import IPythonChatInterface
 
 __all__ = [
     "ChatAssistant",

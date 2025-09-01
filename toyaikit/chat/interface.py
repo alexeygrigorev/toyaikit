@@ -98,3 +98,59 @@ class IPythonChatInterface:
             </div>
         """
         ip_display(HTML(html)) 
+
+
+class StdOutputInterface:
+    def input(self) -> str:
+        """
+        Get input from the user.
+        Returns:
+            str: The user's input.
+        """
+        question = input("You: ")
+        return question.strip()
+    
+    def display(self, message: str) -> None:
+        """
+        Display a message.
+        Args:
+            message: The message to display.
+        """
+        print(message)
+
+    def display_function_call(self, function_name: str, arguments: str, result: str) -> None:
+        """
+        Display a function call.
+        Args:
+            function_name: The name of the function to call.
+            arguments: The arguments to pass to the function.
+            result: The result of the function call.
+        """
+        print()
+        print("--- Function Call ---")
+        print(f"Function: {function_name}")
+        print(f"Arguments: {arguments}")
+        print(f"Result: {result}")
+        print("-------------------")
+        print()
+
+    def display_response(self, markdown_text: str) -> None:
+        """
+        Display a response.
+        Args:
+            markdown_text: The markdown text to display.
+        """
+        print()
+        print(f"Assistant: {markdown_text}\n")
+
+    def display_reasoning(self, markdown_text: str) -> None:
+        """
+        Display a reasoning.
+        Args:
+            markdown_text: The markdown text to display.
+        """
+        print()
+        print("--- Reasoning ---")
+        print(markdown_text)
+        print("---------------")
+        print() 
