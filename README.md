@@ -1,20 +1,27 @@
-# toyaikit
+# ToyAIKit
 
-ToyAIKit is a minimalistic Python library for building AI assistants powered by Large Language Models (LLMs). It provides a simple yet powerful framework for creating chatbots with advanced capabilities like:
+ToyAIKit is a minimalistic Python library for building AI assistants powered by Large Language Models (LLMs). It provides a simple yet powerful framework for creating agentic conversational systems with advanced capabilities including function calling, tool integration, and multi-provider support.
 
-The project builds upon concepts from multiple courses and workshops:
-- ["From RAG to Agents: Build Your Own AI Assistant" Workshop](https://github.com/alexeygrigorev/rag-agents-workshop)
-- [MLZoomcamp's LLM Course](https://github.com/DataTalksClub/llm-zoomcamp) covering AI Agents and MCP
+## Purpose
 
-It's great for learning about agents and agentic asisstants, but not suitable for production use. 
+This library is designed for **educational purposes** and learning about AI agents. It builds upon concepts from multiple courses and workshops:
 
-Main features:
+- ["AI Bootcamp: From RAG to Agents"](https://maven.com/alexey-grigorev/from-rag-to-agents) course
+- ["Agents and MCP"** workshop](https://www.youtube.com/watch?v=W2EDdZplLcU) - Deep dive into function calling, MCP servers, and agentic flows
+- ["Create Your Own Coding Agent" workshop](https://www.youtube.com/watch?v=Sue_mn0JCsY) - Building Django coding agents from scratch
+- [LLM Zoomcamp Course](https://github.com/DataTalksClub/llm-zoomcamp) covering AI Agents and MCP
 
-- Support for OpenAI with both `reponses` and `chat.completions` APIs
-- Support for OpenAI Agents SDK and Pydantic AI
-- Tool integration for function calling
-- Interactive IPython-based chat interface
-- Easy to add new providers and runners
+> **⚠️ Important**: ToyAIKit is great for learning about agents and agentic assistants, but **not suitable for production use**. For production applications, consider using frameworks like OpenAI Agents SDK, PydanticAI.
+
+## Key Features
+
+- Multi-Provider Support: OpenAI (both `responses` and `chat.completions` APIs), Anthropic Claude, Z.ai, and other OpenAI-compatible providers
+- Framework Integration: Wrappers for OpenAI Agents SDK and PydanticAI
+- Function Calling: Easy tool integration with automatic schema generation
+- MCP Support: Model Context Protocol client and server utilities
+- Interactive Chat: IPython-based chat interface for Jupyter notebooks
+- Agentic Flow: Support for multi-step reasoning and tool orchestration
+- Educational Focus: Clear, readable code designed for learning
 
 ## Quick Start
 
@@ -60,10 +67,21 @@ runner = OpenAIResponsesRunner(
 runner.run()
 ```
 
-It displays the responses form the assistant and 
-function calls
+The interface displays responses from the assistant and function calls:
 
 <img src="./images/weather.png" width="50%" />
+
+## Agentic Flow
+
+ToyAIKit implements the agentic conversational flow that distinguishes agents from simple Q&A bots:
+
+1. User Input: User types their question
+2. LLM Decision: The system sends the question to the LLM provider  
+3. Tool Invocation: LLM decides whether to invoke tools or answer directly
+4. Function Execution: If tools are needed, the system executes them and sends results back to LLM
+5. Final Response: LLM analyzes results and provides the final output
+
+This cycle can repeat multiple times within a single conversation turn, enabling complex multi-step reasoning.
 
 
 ### Tools System
@@ -118,13 +136,261 @@ chat_interface.display_response("AI response")
 chat_interface.display_function_call("function_name", '{"arg1": "value1"}', "result")
 ```
 
+## Complete Examples from Workshops
 
-## Examples
+### 1. FAQ Search Agent (from "Agents and MCP" Workshop)
+
+Build a course teaching assistant that can search through FAQ documents and add new entries:
+
+```python
+import requests
+from minsearch import AppendableIndex
+from typing import List, Dict, Any
+
+# Load FAQ data
+docs_url = 'https://github.com/alexeygrigorev/llm-rag-workshop/raw/main/notebooks/documents.json'
+docs_response = requests.get(docs_url)
+documents_raw = docs_response.json()
+
+# Prepare documents
+documents = []
+for course in documents_raw:
+    course_name = course['course']
+    for doc in course['documents']:
+        doc['course'] = course_name
+        documents.append(doc)
+
+# Create search index
+index = AppendableIndex(
+    text_fields=["question", "text", "section"],
+    keyword_fields=["course"]
+)
+index.fit(documents)
+
+# Define search tools
+class SearchTools:
+    def __init__(self, index):
+        self.index = index
+
+    def search(self, query: str) -> List[Dict[str, Any]]:
+        """
+        Search the FAQ database for entries matching the given query.
+        
+        Args:
+            query (str): Search query text to look up in the course FAQ.
+        
+        Returns:
+            List[Dict[str, Any]]: A list of search result entries.
+        """
+        boost = {'question': 3.0, 'section': 0.5}
+        results = self.index.search(
+            query=query,
+            filter_dict={'course': 'data-engineering-zoomcamp'},
+            boost_dict=boost,
+            num_results=5,
+        )
+        return results
+
+    def add_entry(self, question: str, answer: str) -> None:
+        """
+        Add a new entry to the FAQ database.
+        
+        Args:
+            question (str): The question to be added to the FAQ database.
+            answer (str): The corresponding answer to the question.
+        """
+        doc = {
+            'question': question,
+            'text': answer,
+            'section': 'user added',
+            'course': 'data-engineering-zoomcamp'
+        }
+        self.index.append(doc)
+
+# Create and run FAQ agent
+search_tools = SearchTools(index)
+
+tools = Tools()
+tools.add_tools(search_tools)
+
+developer_prompt = """
+You're a course teaching assistant. 
+You're given a question from a course student and your task is to answer it.
+
+If you want to look up the answer, explain why before making the call. Use as many 
+keywords from the user question as possible when making first requests.
+
+Make multiple searches. Try to expand your search by using new keywords based on the results you
+get from the search.
+
+At the end, make a clarifying question based on what you presented and ask if there are 
+other areas that the user wants to explore.
+"""
+
+runner = OpenAIResponsesRunner(
+    tools=tools,
+    developer_prompt=developer_prompt,
+    chat_interface=IPythonChatInterface(),
+    llm_client=OpenAIClient()
+)
+
+runner.run()
+```
+
+### 2. Django Coding Agent (from "Create Your Own Coding Agent" Workshop)
+
+Create a coding agent that can build Django applications from templates:
+
+```python
+import os
+import shutil
+import subprocess
+from pathlib import Path
+
+class AgentTools:
+    def __init__(self, project_path: Path):
+        self.project_path = project_path
+
+    def read_file(self, file_path: str) -> str:
+        """Read the contents of a file."""
+        try:
+            full_path = self.project_path / file_path
+            with open(full_path, 'r', encoding='utf-8') as f:
+                return f.read()
+        except Exception as e:
+            return f"Error reading file: {str(e)}"
+
+    def write_file(self, file_path: str, content: str) -> str:
+        """Write content to a file."""
+        try:
+            full_path = self.project_path / file_path
+            full_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(full_path, 'w', encoding='utf-8') as f:
+                f.write(content)
+            return f"File {file_path} written successfully"
+        except Exception as e:
+            return f"Error writing file: {str(e)}"
+
+    def execute_bash_command(self, command: str) -> str:
+        """Execute a bash command in the project directory."""
+        if "runserver" in command:
+            return "runserver command blocked in agent mode"
+        try:
+            result = subprocess.run(
+                command.split(), 
+                cwd=self.project_path, 
+                capture_output=True, 
+                text=True, 
+                timeout=30
+            )
+            return f"Exit code: {result.returncode}\nSTDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}"
+        except Exception as e:
+            return f"Error executing command: {str(e)}"
+
+# Copy Django template
+def start_project():
+    project_name = input("Enter the new Django project name: ").strip()
+    if not project_name:
+        print("Project name cannot be empty.")
+        return
+    
+    if os.path.exists(project_name):
+        print(f"Directory '{project_name}' already exists.")
+        return
+    
+    shutil.copytree('django_template', project_name)
+    print(f"Django template copied to '{project_name}' directory.")
+    return project_name
+
+# Setup coding agent
+project_name = start_project()
+if project_name:
+    project_path = Path(project_name)
+    agent_tools = AgentTools(project_path)
+    
+    tools = Tools()
+    tools.add_tools(agent_tools)
+    
+    developer_prompt = """
+    You are a coding agent. Your task is to modify the provided Django project template
+    according to user instructions. You don't tell the user what to do; you do it yourself 
+    using the available tools.
+    
+    Always ensure changes are consistent with Django best practices and the project's structure.
+    Use TailwindCSS for styling and make the results look beautiful.
+    """
+    
+    runner = OpenAIResponsesRunner(
+        tools=tools,
+        developer_prompt=developer_prompt,
+        chat_interface=IPythonChatInterface(),
+        llm_client=OpenAIClient()
+    )
+    
+    runner.run()
+```
+
+## Model Context Protocol (MCP) Integration
+
+ToyAIKit includes utilities for working with MCP servers and clients:
+
+### MCP Client Usage
+
+```python
+from toyaikit.mcp import MCPClient, SubprocessMCPTransport
+
+# Connect to an MCP server
+client = MCPClient(
+    transport=SubprocessMCPTransport(
+        server_command=["uv", "run", "python", "main.py"],
+        workdir="faq-mcp"
+    )
+)
+
+# Initialize connection
+client.full_initialize()
+
+# Use MCP tools with ToyAIKit
+from toyaikit.mcp import MCPTools
+
+mcp_tools = MCPTools(client)
+
+runner = OpenAIResponsesRunner(
+    tools=mcp_tools,
+    developer_prompt="You are an assistant with access to MCP tools.",
+    chat_interface=IPythonChatInterface(),
+    llm_client=OpenAIClient()
+)
+
+runner.run()
+```
+
+### MCP Server Creation (with FastMCP)
+
+```python
+from fastmcp import FastMCP
+from toyaikit.tools import wrap_instance_methods
+
+# Create MCP server
+mcp = FastMCP("FAQ Server")
+
+# Add tools to server
+search_tools = SearchTools(index)
+wrap_instance_methods(mcp.tool, search_tools)
+
+# Run server
+if __name__ == "__main__":
+    mcp.run()  # STDIO transport
+    # or
+    mcp.run(transport="sse")  # HTTP SSE transport
+```
+
+
+## Framework Integration Examples
 
 ### OpenAI Chat Completions API
 
-The default runner users the `responses` API. If you need to use 
-the `chat.completions` API, do it with `OpenAIChatCompletionsRunner`:
+The default runner uses the `responses` API. If you need to use the `chat.completions` API, use `OpenAIChatCompletionsRunner`:
 
 ```python
 from openai import OpenAI
@@ -157,14 +423,14 @@ runner = OpenAIChatCompletionsRunner(
 runner.run()
 ```
 
-### Extending it to other LLM providers 
+### Multiple LLM Providers
 
-Most of LLM providers follow the OpenAI API and can be used with the
-OpenAI client. 
+Most LLM providers follow the OpenAI API and can be used with the OpenAI client.
 
-For example, this is how we can use Z.ai's GLM-4.5:
+**Z.ai's GLM-4.5:**
 
 ```python
+import os
 from openai import OpenAI
 
 from toyaikit.tools import Tools
@@ -178,7 +444,7 @@ zai_client = OpenAI(
     base_url='https://api.z.ai/api/paas/v4/'
 )
 
-# define the model to use
+# Define the model to use
 llm_client = OpenAIChatCompletionsClient(
     model='glm-4.5',
     client=zai_client
@@ -190,52 +456,30 @@ agent_tools = ...
 tools = Tools()
 tools.add_tools(agent_tools)
 
-chat_interface = IPythonChatInterface()
-
 runner = OpenAIChatCompletionsRunner(
     tools=tools,
     developer_prompt="You are a coding agent that can modify Django projects.",
-    chat_interface=chat_interface,
+    chat_interface=IPythonChatInterface(),
     llm_client=llm_client
 )
 
 runner.run()
 ```
 
-## Wrappers
-
-ToyAIKit can also help with running agents from OpenAI Agents SDK
-and PydanticAI
-
-### OpenAI Agents SDK
-
+### OpenAI Agents SDK Integration
 
 ```python
-from agents import Agent, Runner, SQLiteSession, function_tool
+from agents import Agent, function_tool
 
-from toyaikit.tools import get_instance_methods
+from toyaikit.tools import wrap_instance_methods
 from toyaikit.chat import IPythonChatInterface
 from toyaikit.chat.runners import OpenAIAgentsSDKRunner
 
+# Wrap tools with function_tool decorator
+agent_tools = ... # your tools class instance
+coding_agent_tools_list = wrap_instance_methods(function_tool, agent_tools)
 
-# use get_instance_methods to find all the methods of an object
-coding_agent_tools_list = []
-
-for m in get_instance_methods(agent_tools):
-    tool = function_tool(m)
-    coding_agent_tools_list.append(tool)
-
-
-# alternatively, define the list yourself:
-coding_agent_tools_list = [
-    function_tool(agent_tools.execute_bash_command),
-    function_tool(agent_tools.read_file),
-    function_tool(agent_tools.search_in_files),
-    function_tool(agent_tools.see_file_tree),
-    function_tool(agent_tools.write_file)
-]
-
-# create the Agent
+# Create the Agent
 coding_agent = Agent(
     name="CodingAgent",
     instructions="You are a coding agent that can modify Django projects.",
@@ -250,11 +494,13 @@ runner = OpenAIAgentsSDKRunner(
     agent=coding_agent
 )
 
-# In Jypyter, run asynchronously
+# In Jupyter, run asynchronously
 await runner.run()
 ```
 
-### Pydantic AI with OpenAI
+### PydanticAI Integration
+
+**With OpenAI:**
 
 ```python
 from pydantic_ai import Agent
@@ -263,7 +509,7 @@ from toyaikit.tools import get_instance_methods
 from toyaikit.chat import IPythonChatInterface
 from toyaikit.chat.runners import PydanticAIRunner
 
-# get tools from your object with functions
+# Get tools from your object with functions
 coding_agent_tools_list = get_instance_methods(agent_tools)
 
 # Create Pydantic AI agent with OpenAI
@@ -284,7 +530,7 @@ runner = PydanticAIRunner(
 await runner.run()
 ```
 
-You can easily switch to Claude:
+**Switching to Claude:**
 
 ```python
 coding_agent = Agent(
@@ -293,6 +539,59 @@ coding_agent = Agent(
     tools=coding_agent_tools_list
 )
 ```
+
+### PydanticAI with MCP
+
+```python
+from pydantic_ai import Agent
+from pydantic_ai.mcp import MCPServerStdio
+
+from toyaikit.chat.interface import StdOutputInterface
+from toyaikit.chat.runners import PydanticAIRunner
+
+# Connect to MCP server
+mcp_client = MCPServerStdio(
+    command="uv",
+    args=["run", "python", "main.py"],
+    cwd="faq-mcp"
+)
+
+# Create agent with MCP tools
+agent = Agent(
+    name="faq_agent",
+    instructions="You're a course teaching assistant.",
+    toolsets=[mcp_client],
+    model='gpt-4o-mini'
+)
+
+# Run agent
+runner = PydanticAIRunner(
+    chat_interface=StdOutputInterface(),
+    agent=agent
+)
+
+import asyncio
+asyncio.run(runner.run())
+```
+
+## Use Cases & Best Practices
+
+### When to Use ToyAIKit
+
+✅ **Good for:**
+- Learning about AI agents and agentic patterns
+- Prototyping agent-based applications
+- Educational projects and workshops
+- Understanding function calling mechanics
+- Experimenting with different LLM providers
+- Building proof-of-concept agents
+
+❌ **Not suitable for:**
+- Production applications
+- High-scale systems
+- Applications requiring advanced agent orchestration
+- Enterprise-grade reliability
+
 
 ## Development
 
