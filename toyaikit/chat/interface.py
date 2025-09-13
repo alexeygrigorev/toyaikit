@@ -1,13 +1,12 @@
+import mistune
 from IPython.display import HTML
 from IPython.display import display as ip_display
-import mistune
-
 
 
 def shorten(text, max_length=50):
     if len(text) <= max_length:
         return text
-    return text[:max_length - 3] + "..."
+    return text[: max_length - 3] + "..."
 
 
 class ChatInterface:
@@ -26,8 +25,10 @@ class ChatInterface:
             message: The message to display.
         """
         raise NotImplementedError("Subclasses must implement this method")
-    
-    def display_function_call(self, function_name: str, arguments: str, result: str) -> None:
+
+    def display_function_call(
+        self, function_name: str, arguments: str, result: str
+    ) -> None:
         """
         Display a function call.
         Args:
@@ -36,7 +37,7 @@ class ChatInterface:
             result: The result of the function call.
         """
         raise NotImplementedError("Subclasses must implement this method")
-    
+
     def display_response(self, markdown_text: str) -> None:
         """
         Display a response.
@@ -58,11 +59,13 @@ class IPythonChatInterface:
     def input(self) -> str:
         question = input("You:")
         return question.strip()
-    
+
     def display(self, message: str) -> None:
         print(message)
 
-    def display_function_call(self, function_name: str, arguments: str, result: str) -> None:
+    def display_function_call(
+        self, function_name: str, arguments: str, result: str
+    ) -> None:
         call_html = f"""
             <details>
             <summary>Function call: <tt>{function_name}({shorten(arguments)})</tt></summary>
@@ -74,7 +77,7 @@ class IPythonChatInterface:
                 <b>Output</b>
                 <pre>{result}</pre>
             </div>
-            
+
             </details>
         """
         ip_display(HTML(call_html))
@@ -97,7 +100,7 @@ class IPythonChatInterface:
                 <div>{response_html}</div>
             </div>
         """
-        ip_display(HTML(html)) 
+        ip_display(HTML(html))
 
 
 class StdOutputInterface:
@@ -109,7 +112,7 @@ class StdOutputInterface:
         """
         question = input("You: ")
         return question.strip()
-    
+
     def display(self, message: str) -> None:
         """
         Display a message.
@@ -118,7 +121,9 @@ class StdOutputInterface:
         """
         print(message)
 
-    def display_function_call(self, function_name: str, arguments: str, result: str) -> None:
+    def display_function_call(
+        self, function_name: str, arguments: str, result: str
+    ) -> None:
         """
         Display a function call.
         Args:
@@ -153,4 +158,4 @@ class StdOutputInterface:
         print("--- Reasoning ---")
         print(markdown_text)
         print("---------------")
-        print() 
+        print()

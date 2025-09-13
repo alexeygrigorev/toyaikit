@@ -1,9 +1,13 @@
 import json
 import uuid
 
-from toyaikit.tools import Tools
-from toyaikit.tools import generate_function_schema, generate_schemas_from_instance
-from toyaikit.tools import python_type_to_json_type
+from toyaikit.tools import (
+    Tools,
+    generate_function_schema,
+    generate_schemas_from_instance,
+    python_type_to_json_type,
+)
+
 
 class ToolCallResponse:
     def __init__(self, name, arguments, type="function_call", status="completed"):
@@ -14,10 +18,13 @@ class ToolCallResponse:
         self.id = uuid.uuid4().hex
         self.status = status
 
+
 # Define simple tool functions and their descriptions for testing
+
 
 def add(a: float, b: float) -> float:
     return a + b
+
 
 add_tool_desc = {
     "type": "function",
@@ -27,15 +34,17 @@ add_tool_desc = {
         "type": "object",
         "properties": {
             "a": {"type": "number", "description": "First number."},
-            "b": {"type": "number", "description": "Second number."}
+            "b": {"type": "number", "description": "Second number."},
         },
         "required": ["a", "b"],
-        "additionalProperties": False
-    }
+        "additionalProperties": False,
+    },
 }
+
 
 def multiply(a: float, b: float) -> float:
     return a * b
+
 
 multiply_tool_desc = {
     "type": "function",
@@ -45,15 +54,17 @@ multiply_tool_desc = {
         "type": "object",
         "properties": {
             "a": {"type": "number", "description": "First number."},
-            "b": {"type": "number", "description": "Second number."}
+            "b": {"type": "number", "description": "Second number."},
         },
         "required": ["a", "b"],
-        "additionalProperties": False
-    }
+        "additionalProperties": False,
+    },
 }
+
 
 def echo(text: str) -> str:
     return text
+
 
 echo_tool_desc = {
     "type": "function",
@@ -61,13 +72,12 @@ echo_tool_desc = {
     "description": "Echo the input text.",
     "parameters": {
         "type": "object",
-        "properties": {
-            "text": {"type": "string", "description": "Text to echo back."}
-        },
+        "properties": {"text": {"type": "string", "description": "Text to echo back."}},
         "required": ["text"],
-        "additionalProperties": False
-    }
+        "additionalProperties": False,
+    },
 }
+
 
 def test_tools_registration_and_call():
     tools = Tools()
@@ -95,13 +105,15 @@ def test_tools_registration_and_call():
     echo_args = json.dumps({"text": "hello"})
     echo_resp = ToolCallResponse("echo", echo_args)
     result = tools.function_call(echo_resp)
-    assert json.loads(result["output"]) == "hello" 
+    assert json.loads(result["output"]) == "hello"
+
 
 def test_add_tools_and_generate_schemas_from_instance():
     class Dummy:
         def foo(self, x: int) -> int:
             """Return x+1"""
             return x + 1
+
         def bar(self, y: str) -> str:
             return y.upper()
 
@@ -115,7 +127,6 @@ def test_add_tools_and_generate_schemas_from_instance():
     # Check schema docstring for foo
     foo_schema = [t for t in tools.get_tools() if t["name"] == "foo"][0]
     assert "Return x+1" in foo_schema["description"]
-
 
     resp = ToolCallResponse("foo", json.dumps({"x": 41}))
     result = tools.function_call(resp)
@@ -156,14 +167,20 @@ def test_python_type_to_json_type():
     assert python_type_to_json_type(bool) == "boolean"
     assert python_type_to_json_type(list) == "array"
     assert python_type_to_json_type(dict) == "object"
-    class Custom: pass
+
+    class Custom:
+        pass
+
     assert python_type_to_json_type(Custom) == "string"
 
 
 def test_generate_schemas_from_instance_skips_private():
     class Dummy:
-        def _private(self): pass
-        def public(self): return 1
+        def _private(self):
+            pass
+
+        def public(self):
+            return 1
 
     dummy = Dummy()
 
@@ -175,13 +192,12 @@ def test_generate_schemas_from_instance_skips_private():
 
 
 def test_function_call_errors():
-
     def foo(a: int):
         return a
 
     tools = Tools()
     tools.add_tool(foo)
-    
+
     # Unknown tool
     bad_resp = ToolCallResponse("not_a_tool", json.dumps({}))
     result = tools.function_call(bad_resp)
@@ -190,7 +206,7 @@ def test_function_call_errors():
     error_data = json.loads(result["output"])
     assert "error" in error_data
     assert "KeyError" in error_data["error"]
-    
+
     # Bad arguments
     bad_args = ToolCallResponse("foo", json.dumps({"b": 1}))
     result = tools.function_call(bad_args)
@@ -210,7 +226,7 @@ def test_add_tool_auto_schema():
     tools.add_tool(bar)  # No schema provided
 
     print(tools.get_tools())
-    
+
     tool = [t for t in tools.get_tools() if t["name"] == "bar"][0]
     assert tool["description"].startswith("Returns x squared")
 
@@ -228,19 +244,19 @@ def test_auto_schema_get_tools_output():
     tools = Tools()
     tools.add_tool(bar)  # No schema provided
 
-    expected = [{
-        'type': 'function',
-        'name': 'bar',
-        'description': 'Returns x squared',
-        'parameters': {
-            'type': 'object',
-            'properties': {
-                'x': {'type': 'number', 'description': 'x parameter'}
+    expected = [
+        {
+            "type": "function",
+            "name": "bar",
+            "description": "Returns x squared",
+            "parameters": {
+                "type": "object",
+                "properties": {"x": {"type": "number", "description": "x parameter"}},
+                "required": ["x"],
+                "additionalProperties": False,
             },
-            'required': ['x'],
-            'additionalProperties': False
         }
-    }]
+    ]
 
     assert tools.get_tools() == expected
 
@@ -250,6 +266,7 @@ def test_auto_schema_get_tools_output_class_instance_multiple_methods():
         def bar(self, x: int) -> int:
             """Returns x squared"""
             return x * x
+
         def foo(self, y: float) -> float:
             """Returns y plus 1"""
             return y + 1
@@ -259,38 +276,64 @@ def test_auto_schema_get_tools_output_class_instance_multiple_methods():
     tools.add_tools(obj)
 
     tools_list = tools.get_tools()
-    tool_names = {t['name'] for t in tools_list}
-    assert 'bar' in tool_names
-    assert 'foo' in tool_names
+    tool_names = {t["name"] for t in tools_list}
+    assert "bar" in tool_names
+    assert "foo" in tool_names
 
-    bar_schema = next(t for t in tools_list if t['name'] == 'bar')
-    foo_schema = next(t for t in tools_list if t['name'] == 'foo')
+    bar_schema = next(t for t in tools_list if t["name"] == "bar")
+    foo_schema = next(t for t in tools_list if t["name"] == "foo")
 
     expected_bar = {
-        'type': 'function',
-        'name': 'bar',
-        'description': 'Returns x squared',
-        'parameters': {
-            'type': 'object',
-            'properties': {
-                'x': {'type': 'number', 'description': 'x parameter'}
-            },
-            'required': ['x'],
-            'additionalProperties': False
-        }
+        "type": "function",
+        "name": "bar",
+        "description": "Returns x squared",
+        "parameters": {
+            "type": "object",
+            "properties": {"x": {"type": "number", "description": "x parameter"}},
+            "required": ["x"],
+            "additionalProperties": False,
+        },
     }
     expected_foo = {
-        'type': 'function',
-        'name': 'foo',
-        'description': 'Returns y plus 1',
-        'parameters': {
-            'type': 'object',
-            'properties': {
-                'y': {'type': 'number', 'description': 'y parameter'}
-            },
-            'required': ['y'],
-            'additionalProperties': False
-        }
+        "type": "function",
+        "name": "foo",
+        "description": "Returns y plus 1",
+        "parameters": {
+            "type": "object",
+            "properties": {"y": {"type": "number", "description": "y parameter"}},
+            "required": ["y"],
+            "additionalProperties": False,
+        },
     }
     assert bar_schema == expected_bar
     assert foo_schema == expected_foo
+
+
+def test_wrap_instance_methods():
+    """Test wrap_instance_methods function coverage"""
+    from toyaikit.tools import wrap_instance_methods
+
+    class TestClass:
+        def method1(self, x: int) -> int:
+            """First method"""
+            return x * 2
+
+        def method2(self, y: str) -> str:
+            """Second method"""
+            return f"Hello {y}"
+
+    def test_decorator(func):
+        """Simple test decorator that just returns the function"""
+        return func
+
+    instance = TestClass()
+    result = wrap_instance_methods(test_decorator, instance)
+
+    # Should return a list of decorated methods
+    assert isinstance(result, list)
+    assert len(result) == 2
+
+    # Each result should be the original method (since our decorator just returns the function)
+    method_names = [method.__name__ for method in result]
+    assert "method1" in method_names
+    assert "method2" in method_names

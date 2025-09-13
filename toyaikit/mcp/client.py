@@ -1,5 +1,5 @@
 import time
-from typing import Dict, Any, List, Optional
+from typing import Any, Dict, List, Optional
 
 from toyaikit.mcp.transport import MCPTransport
 
@@ -30,10 +30,7 @@ class MCPClient:
         return self.request_id
 
     def _send_notification(self, method: str, params: Optional[Dict[str, Any]] = None):
-        notification = {
-            "jsonrpc": "2.0",
-            "method": method
-        }
+        notification = {"jsonrpc": "2.0", "method": method}
 
         if params:
             notification["params"] = params
@@ -64,15 +61,10 @@ class MCPClient:
         print("Sending initialize request...")
         params = {
             "protocolVersion": "2024-11-05",
-            "capabilities": {
-                "roots": {
-                    "listChanged": True
-                },
-                "sampling": {}
-            },
+            "capabilities": {"roots": {"listChanged": True}, "sampling": {}},
             "clientInfo": {
                 "name": self.client_name,
-                "version": self.client_version
+                "version": self.client_version,
             },
         }
 

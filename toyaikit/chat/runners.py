@@ -1,11 +1,11 @@
-import uuid
 import json
-from typing import Callable
+import uuid
 from abc import ABC, abstractmethod
+from typing import Callable
 
-from toyaikit.tools import Tools
 from toyaikit.chat.interface import ChatInterface
 from toyaikit.llm import LLMClient
+from toyaikit.tools import Tools
 
 
 class RunnerCallback(ABC):
@@ -191,6 +191,7 @@ class OpenAIAgentsSDKRunner(ChatRunner):
 
     async def run(self) -> None:
         from agents import SQLiteSession
+
         session_id = f"chat_session_{uuid.uuid4().hex[:8]}"
         session = SQLiteSession(session_id)
 
@@ -353,7 +354,7 @@ class OpenAIChatCompletionsRunner(ChatRunner):
                 break
 
             for call in calls:
-                function_call = D(call.function.model_dump())
+                function_call = dict(call.function.model_dump())
                 function_call["call_id"] = call.id
 
                 call_result = self.tools.function_call(function_call)

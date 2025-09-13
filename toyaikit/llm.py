@@ -1,7 +1,9 @@
 from typing import List
+
 from openai import OpenAI
-from toyaikit.tools import Tools
 from pydantic import BaseModel
+
+from toyaikit.tools import Tools
 
 
 class LLMClient:
@@ -76,7 +78,10 @@ class OpenAIChatCompletionsClient(LLMClient):
         return chat_functions
 
     def send_request(
-        self, chat_messages: List, tools: Tools = None, output_format: BaseModel = None
+        self,
+        chat_messages: List,
+        tools: Tools = None,
+        output_format: BaseModel = None,
     ):
         tools_list = []
         if tools is not None:

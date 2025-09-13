@@ -40,7 +40,12 @@ dev = [
     "hatch",
     "build",
     "pytest",
-    "twine"
+    "pytest-cov",
+    "coverage[toml]",
+    "twine",
+    "openai-agents>=0.3.0",
+    "pytest-asyncio>=1.2.0",
+    "ruff",
 ]
 
 [project.urls]
@@ -59,6 +64,48 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
-addopts = "-v --tb=short -s" 
+addopts = "-v --tb=short -s --cov=toyaikit --cov-report=term-missing --cov-report=html"
+
+[tool.coverage.run]
+source = ["toyaikit"]
+omit = [
+    "*/tests/*",
+    "*/__pycache__/*",
+    "*/venv/*",
+    "*/.venv/*"
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "if settings.DEBUG",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if 0:",
+    "if __name__ == .__main__.:"
+]
+show_missing = true
+skip_covered = false 
+
+[tool.ruff]
+line-length = 88
+target-version = "py39"
+
+[tool.ruff.lint]
+select = [
+    "E",  # pycodestyle errors
+    "W",  # pycodestyle warnings
+    "F",  # pyflakes
+    "I",  # isort
+]
+ignore = ["E501"]  # Ignore line too long
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
 
 

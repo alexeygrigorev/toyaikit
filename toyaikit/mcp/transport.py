@@ -1,10 +1,10 @@
 import json
-import subprocess
 import os
-from typing import Dict, Any, List
+import subprocess
+from typing import Any, Dict, List
+
 
 class MCPTransport:
-    
     def start(self):
         raise NotImplementedError("Subclasses must implement this method")
 
@@ -27,9 +27,9 @@ class SubprocessMCPTransport(MCPTransport):
     def start(self):
         # Ensure proper unicode support with UTF-8 encoding
         env = os.environ.copy()
-        env['PYTHONIOENCODING'] = 'utf-8'
-        env['PYTHONUNBUFFERED'] = '1'
-        
+        env["PYTHONIOENCODING"] = "utf-8"
+        env["PYTHONUNBUFFERED"] = "1"
+
         self.process = subprocess.Popen(
             self.server_command,
             stdin=subprocess.PIPE,
@@ -39,8 +39,8 @@ class SubprocessMCPTransport(MCPTransport):
             bufsize=0,
             cwd=self.workdir,
             env=env,
-            encoding='utf-8',
-            errors='replace'
+            encoding="utf-8",
+            errors="replace",
         )
         print(f"Started server with command: {' '.join(self.server_command)}")
 
@@ -71,4 +71,4 @@ class SubprocessMCPTransport(MCPTransport):
         except UnicodeDecodeError as e:
             raise RuntimeError(f"Unicode decoding error: {e}")
         except json.JSONDecodeError as e:
-            raise RuntimeError(f"JSON decode error: {e}") 
+            raise RuntimeError(f"JSON decode error: {e}")

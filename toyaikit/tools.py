@@ -1,6 +1,5 @@
-import json
 import inspect
-
+import json
 from typing import get_type_hints
 
 
@@ -77,19 +76,17 @@ class Tools:
             f = self.functions[function_name]
             result = f(**arguments)
             return {
-                "type": "function_call_output", 
+                "type": "function_call_output",
                 "call_id": tool_call_response.call_id,
                 "output": json.dumps(result, indent=2),
             }
         except Exception as e:
             error_name = e.__class__.__name__
             error_message = str(e)
-            error = {
-                "error": f"{error_name}: {error_message}"
-            }
+            error = {"error": f"{error_name}: {error_message}"}
             return {
                 "type": "function_call_output",
-                "call_id": tool_call_response.call_id, 
+                "call_id": tool_call_response.call_id,
                 "output": json.dumps(error, indent=2),
             }
 
@@ -120,21 +117,22 @@ def generate_function_schema(func, description=None):
             "type": "object",
             "properties": {},
             "required": [],
-            "additionalProperties": False
-        }
+            "additionalProperties": False,
+        },
     }
-    
+
     for name, param in sig.parameters.items():
         param_type = hints.get(name, str)
         json_type = python_type_to_json_type(param_type)
         schema["parameters"]["properties"][name] = {
             "type": json_type,
-            "description": f"{name} parameter"  # You can enhance this with more info
+            "description": f"{name} parameter",  # You can enhance this with more info
         }
         if param.default is inspect.Parameter.empty:
             schema["parameters"]["required"].append(name)
-    
+
     return schema
+
 
 def python_type_to_json_type(py_type):
     """
@@ -148,11 +146,11 @@ def python_type_to_json_type(py_type):
         return "string"
     elif py_type in [int, float]:
         return "number"
-    elif py_type == bool:
+    elif py_type is bool:
         return "boolean"
-    elif py_type == list:
+    elif py_type is list:
         return "array"
-    elif py_type == dict:
+    elif py_type is dict:
         return "object"
     else:
         return "string"  # fallback for unknown types
