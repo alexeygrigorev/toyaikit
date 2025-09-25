@@ -1,0 +1,2 @@
+Use uv for dependency management and running scripts within the project
+
