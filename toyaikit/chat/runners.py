@@ -5,6 +5,7 @@ from typing import Callable
 
 from toyaikit.chat.interface import ChatInterface
 from toyaikit.llm import LLMClient
+from toyaikit.pricing import CostInfo, LoopResult, PricingConfig, TokenUsage
 from toyaikit.tools import Tools
 
 
@@ -45,7 +46,7 @@ class ChatRunner(ABC):
         prompt: str,
         previous_messages: list = None,
         callback: RunnerCallback = None,
-    ) -> list:
+    ) -> LoopResult:
         """
         Loop the chat.
         """
@@ -94,13 +95,14 @@ class OpenAIResponsesRunner(ChatRunner):
         self.llm_client = llm_client
         self.chat_interface = chat_interface
         self.displaying_callback = DisplayingRunnerCallback(chat_interface)
+        self.pricing_config = PricingConfig()
 
     def loop(
         self,
         prompt: str,
         previous_messages: list[dict] = None,
         callback: RunnerCallback = None,
-    ) -> list:
+    ) -> LoopResult:
         chat_messages = []
         prev_messages_len = 0
 
@@ -114,11 +116,18 @@ class OpenAIResponsesRunner(ChatRunner):
 
         chat_messages.append({"role": "user", "content": prompt})
 
+        total_input_tokens = 0
+        total_output_tokens = 0
+
         while True:
             response = self.llm_client.send_request(
                 chat_messages=chat_messages,
                 tools=self.tools,
             )
+
+            if hasattr(response, "usage") and response.usage:
+                total_input_tokens += response.usage.input_tokens
+                total_output_tokens += response.usage.output_tokens
 
             has_function_calls = False
 
@@ -139,7 +148,23 @@ class OpenAIResponsesRunner(ChatRunner):
             if not has_function_calls:
                 break
 
-        return chat_messages[prev_messages_len:]
+
+        cost_info = self.pricing_config.calculate_cost(
+            self.llm_client.model, total_input_tokens, total_output_tokens
+        )
+        token_usage = TokenUsage(
+            input_tokens=total_input_tokens,
+            output_tokens=total_output_tokens,
+            total_tokens=total_input_tokens + total_output_tokens,
+        )
+
+        new_messages = chat_messages[prev_messages_len:]
+        return LoopResult(
+            new_messages=new_messages,
+            all_messages=chat_messages,
+            tokens=token_usage,
+            cost=cost_info,
+        )
 
     def run(
         self,
@@ -154,21 +179,20 @@ class OpenAIResponsesRunner(ChatRunner):
             chat_messages = []
             chat_messages.extend(previous_messages)
 
-        # Chat loop
         while True:
             question = self.chat_interface.input()
             if question.lower() == "stop":
                 self.chat_interface.display("Chat ended.")
                 break
 
-            new_messages = self.loop(
+            loop_result = self.loop(
                 prompt=question,
                 previous_messages=chat_messages,
                 callback=self.displaying_callback,
             )
 
-            chat_messages.extend(new_messages)
-            if stop_criteria and stop_criteria(new_messages):
+            chat_messages.extend(loop_result.new_messages)
+            if stop_criteria and stop_criteria(loop_result.new_messages):
                 break
 
         return chat_messages
@@ -314,7 +338,7 @@ class OpenAIChatCompletionsRunner(ChatRunner):
         prompt: str,
         previous_messages: list = None,
         callback: RunnerCallback = None,
-    ) -> list:
+    ) -> LoopResult:
         chat_messages = []
         prev_messages_len = 0
 
@@ -326,8 +350,15 @@ class OpenAIChatCompletionsRunner(ChatRunner):
 
         chat_messages.append({"role": "user", "content": prompt})
 
+        total_input_tokens = 0
+        total_output_tokens = 0
+
         while True:
             reponse = self.llm_client.send_request(chat_messages, self.tools)
+
+            if hasattr(reponse, "usage") and reponse.usage:
+                total_input_tokens += reponse.usage.prompt_tokens
+                total_output_tokens += reponse.usage.completion_tokens
 
             first_choice = reponse.choices[0]
             message_response = first_choice.message
@@ -365,7 +396,23 @@ class OpenAIChatCompletionsRunner(ChatRunner):
                 if callback:
                     callback.on_function_call(function_call, call_result["content"])
 
-        return chat_messages[prev_messages_len:]
+        pricing_config = PricingConfig()
+        cost_info = pricing_config.calculate_cost(
+            self.llm_client.model, total_input_tokens, total_output_tokens
+        )
+        token_usage = TokenUsage(
+            input_tokens=total_input_tokens,
+            output_tokens=total_output_tokens,
+            total_tokens=total_input_tokens + total_output_tokens,
+        )
+
+        new_messages = chat_messages[prev_messages_len:]
+        return LoopResult(
+            new_messages=new_messages,
+            all_messages=chat_messages,
+            tokens=token_usage,
+            cost=cost_info,
+        )
 
     def run(self, stop_criteria: Callable = None) -> list:
         chat_messages = [
@@ -378,14 +425,14 @@ class OpenAIChatCompletionsRunner(ChatRunner):
                 self.chat_interface.display("Chat ended")
                 break
 
-            new_messages = self.loop(
+            loop_result = self.loop(
                 prompt=user_input,
                 previous_messages=chat_messages,
                 callback=self.displaying_callback,
             )
 
-            chat_messages.extend(new_messages)
-            if stop_criteria and stop_criteria(new_messages):
+            chat_messages.extend(loop_result.new_messages)
+            if stop_criteria and stop_criteria(loop_result.new_messages):
                 break
 
         return chat_messages

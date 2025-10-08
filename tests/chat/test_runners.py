@@ -15,6 +15,7 @@ from toyaikit.chat.runners import (
     RunnerCallback,
 )
 from toyaikit.llm import LLMClient
+from toyaikit.pricing import CostInfo, LoopResult, TokenUsage
 from toyaikit.tools import Tools
 
 
@@ -175,8 +176,10 @@ class TestOpenAIResponsesRunner:
         message_entry = SimpleNamespace(
             type="message", content=[SimpleNamespace(text="Hello")]
         )
-        mock_response = SimpleNamespace(output=[message_entry])
+        mock_usage = SimpleNamespace(input_tokens=10, output_tokens=20)
+        mock_response = SimpleNamespace(output=[message_entry], usage=mock_usage)
         self.mock_llm_client.send_request.return_value = mock_response
+        self.mock_llm_client.model = "gpt-4o-mini"
 
         result = self.runner.loop("Test prompt")
 
@@ -191,15 +194,20 @@ class TestOpenAIResponsesRunner:
             chat_messages=expected_messages, tools=self.mock_tools
         )
 
-        # Should return only the new messages (after previous_messages_len=0)
-        # The result should include developer prompt, user prompt, and response
-        assert len(result) == 3
-        assert result[0] == {
+        # Should return LoopResult
+        assert isinstance(result, LoopResult)
+        assert len(result.new_messages) == 3
+        assert result.new_messages[0] == {
             "role": "developer",
             "content": "Test developer prompt",
         }
-        assert result[1] == {"role": "user", "content": "Test prompt"}
-        assert result[2] == message_entry
+        assert result.new_messages[1] == {"role": "user", "content": "Test prompt"}
+        assert result.new_messages[2] == message_entry
+        assert result.tokens.input_tokens == 10
+        assert result.tokens.output_tokens == 20
+        assert result.tokens.total_tokens == 30
+        assert isinstance(result.cost, CostInfo)
+        assert result.cost.total_cost > 0
 
     def test_loop_with_previous_messages(self):
         """Test loop method with previous messages"""
@@ -208,8 +216,10 @@ class TestOpenAIResponsesRunner:
         message_entry = SimpleNamespace(
             type="message", content=[SimpleNamespace(text="Hello")]
         )
-        mock_response = SimpleNamespace(output=[message_entry])
+        mock_usage = SimpleNamespace(input_tokens=10, output_tokens=20)
+        mock_response = SimpleNamespace(output=[message_entry], usage=mock_usage)
         self.mock_llm_client.send_request.return_value = mock_response
+        self.mock_llm_client.model = "gpt-4o-mini"
 
         result = self.runner.loop("Test prompt", previous_messages=previous_messages)
 
@@ -224,7 +234,8 @@ class TestOpenAIResponsesRunner:
         )
 
         # Should return only the new messages (after previous_messages_len)
-        assert result == [
+        assert isinstance(result, LoopResult)
+        assert result.new_messages == [
             {"role": "user", "content": "Test prompt"},
             message_entry,
         ]
@@ -243,11 +254,13 @@ class TestOpenAIResponsesRunner:
             type="message", content=[SimpleNamespace(text="Final response")]
         )
 
+        mock_usage = SimpleNamespace(input_tokens=10, output_tokens=20)
         # First response has function call, second has final message
         self.mock_llm_client.send_request.side_effect = [
-            SimpleNamespace(output=[function_call]),
-            SimpleNamespace(output=[message_entry]),
+            SimpleNamespace(output=[function_call], usage=mock_usage),
+            SimpleNamespace(output=[message_entry], usage=mock_usage),
         ]
+        self.mock_llm_client.model = "gpt-4o-mini"
 
         mock_callback = Mock(spec=RunnerCallback)
         self.runner.loop("Test prompt", callback=mock_callback)
@@ -268,8 +281,10 @@ class TestOpenAIResponsesRunner:
         message_entry = SimpleNamespace(
             type="message", content=[SimpleNamespace(text="Hello")]
         )
-        mock_response = SimpleNamespace(output=[message_entry])
+        mock_usage = SimpleNamespace(input_tokens=10, output_tokens=20)
+        mock_response = SimpleNamespace(output=[message_entry], usage=mock_usage)
         self.mock_llm_client.send_request.return_value = mock_response
+        self.mock_llm_client.model = "gpt-4o-mini"
 
         mock_callback = Mock(spec=RunnerCallback)
         self.runner.loop("Test prompt", callback=mock_callback)
@@ -283,7 +298,12 @@ class TestOpenAIResponsesRunner:
 
         # Mock loop response
         with patch.object(self.runner, "loop") as mock_loop:
-            mock_loop.return_value = [{"role": "assistant", "content": "Hi there"}]
+            mock_loop.return_value = LoopResult(
+                new_messages=[{"role": "assistant", "content": "Hi there"}],
+                all_messages=[{"role": "assistant", "content": "Hi there"}],
+                tokens=TokenUsage(input_tokens=10, output_tokens=20, total_tokens=30),
+                cost=CostInfo(input_cost=0.001, output_cost=0.002, total_cost=0.003),
+            )
 
             self.runner.run()
 
@@ -302,7 +322,12 @@ class TestOpenAIResponsesRunner:
         self.mock_interface.input.side_effect = ["hello", "stop"]
 
         with patch.object(self.runner, "loop") as mock_loop:
-            mock_loop.return_value = [{"role": "assistant", "content": "Hi"}]
+            mock_loop.return_value = LoopResult(
+                new_messages=[{"role": "assistant", "content": "Hi"}],
+                all_messages=[{"role": "assistant", "content": "Hi"}],
+                tokens=TokenUsage(input_tokens=10, output_tokens=20, total_tokens=30),
+                cost=CostInfo(input_cost=0.001, output_cost=0.002, total_cost=0.003),
+            )
 
             self.runner.run(previous_messages=previous_messages)
 
@@ -330,8 +355,18 @@ class TestOpenAIResponsesRunner:
 
         with patch.object(self.runner, "loop") as mock_loop:
             mock_loop.side_effect = [
-                [{"role": "assistant", "content": "Hi"}],
-                [{"role": "assistant", "content": "Please stop"}],
+                LoopResult(
+                    new_messages=[{"role": "assistant", "content": "Hi"}],
+                    all_messages=[{"role": "assistant", "content": "Hi"}],
+                    tokens=TokenUsage(input_tokens=10, output_tokens=20, total_tokens=30),
+                    cost=CostInfo(input_cost=0.001, output_cost=0.002, total_cost=0.003),
+                ),
+                LoopResult(
+                    new_messages=[{"role": "assistant", "content": "Please stop"}],
+                    all_messages=[{"role": "assistant", "content": "Please stop"}],
+                    tokens=TokenUsage(input_tokens=10, output_tokens=20, total_tokens=30),
+                    cost=CostInfo(input_cost=0.001, output_cost=0.002, total_cost=0.003),
+                ),
             ]
 
             self.runner.run(stop_criteria=stop_criteria)
@@ -655,10 +690,16 @@ class TestOpenAIChatCompletionsRunner:
         mock_choice = Mock()
         mock_choice.message = mock_message
 
+        mock_usage = Mock()
+        mock_usage.prompt_tokens = 10
+        mock_usage.completion_tokens = 20
+
         mock_response = Mock()
         mock_response.choices = [mock_choice]
+        mock_response.usage = mock_usage
 
         self.mock_llm_client.send_request.return_value = mock_response
+        self.mock_llm_client.model = "gpt-4o-mini"
 
         mock_callback = Mock()
         result = self.runner.loop("Test prompt", callback=mock_callback)
@@ -666,8 +707,9 @@ class TestOpenAIChatCompletionsRunner:
         # Should call message callback
         mock_callback.on_message.assert_called_once_with("Hello there")
 
-        # Should return new messages only
-        assert len(result) >= 2  # user message + assistant message
+        # Should return LoopResult
+        assert isinstance(result, LoopResult)
+        assert len(result.new_messages) >= 2
 
     def test_loop_with_reasoning(self):
         """Test loop method with reasoning content"""
@@ -680,10 +722,16 @@ class TestOpenAIChatCompletionsRunner:
         mock_choice = Mock()
         mock_choice.message = mock_message
 
+        mock_usage = Mock()
+        mock_usage.prompt_tokens = 10
+        mock_usage.completion_tokens = 20
+
         mock_response = Mock()
         mock_response.choices = [mock_choice]
+        mock_response.usage = mock_usage
 
         self.mock_llm_client.send_request.return_value = mock_response
+        self.mock_llm_client.model = "gpt-4o-mini"
 
         mock_callback = Mock()
         self.runner.loop("Test prompt", callback=mock_callback)
@@ -720,10 +768,15 @@ class TestOpenAIChatCompletionsRunner:
         mock_final_choice = Mock()
         mock_final_choice.message = mock_final_message
 
+        mock_usage = Mock()
+        mock_usage.prompt_tokens = 10
+        mock_usage.completion_tokens = 20
+
         self.mock_llm_client.send_request.side_effect = [
-            Mock(choices=[mock_choice]),
-            Mock(choices=[mock_final_choice]),
+            Mock(choices=[mock_choice], usage=mock_usage),
+            Mock(choices=[mock_final_choice], usage=mock_usage),
         ]
+        self.mock_llm_client.model = "gpt-4o-mini"
 
         # Mock tool function call result
         tool_result = {"call_id": "call_123", "output": "Tool output"}
@@ -750,7 +803,12 @@ class TestOpenAIChatCompletionsRunner:
         self.mock_interface.input.side_effect = ["hello", "stop"]
 
         with patch.object(self.runner, "loop") as mock_loop:
-            mock_loop.return_value = [{"role": "assistant", "content": "Hi"}]
+            mock_loop.return_value = LoopResult(
+                new_messages=[{"role": "assistant", "content": "Hi"}],
+                all_messages=[{"role": "assistant", "content": "Hi"}],
+                tokens=TokenUsage(input_tokens=10, output_tokens=20, total_tokens=30),
+                cost=CostInfo(input_cost=0.001, output_cost=0.002, total_cost=0.003),
+            )
 
             self.runner.run()
 
@@ -771,15 +829,22 @@ class TestOpenAIChatCompletionsRunner:
         mock_choice = Mock()
         mock_choice.message = mock_message
 
+        mock_usage = Mock()
+        mock_usage.prompt_tokens = 10
+        mock_usage.completion_tokens = 20
+
         mock_response = Mock()
         mock_response.choices = [mock_choice]
+        mock_response.usage = mock_usage
 
         self.mock_llm_client.send_request.return_value = mock_response
+        self.mock_llm_client.model = "gpt-4o-mini"
 
         result = self.runner.loop("Test prompt", previous_messages=previous_messages)
 
         # Should treat empty list same as None - add system prompt
-        assert len(result) >= 2  # system message + user message + response
+        assert isinstance(result, LoopResult)
+        assert len(result.new_messages) >= 2
 
     def test_loop_with_empty_tool_calls_list(self):
         """Test loop method when tool_calls is empty list"""
@@ -791,10 +856,16 @@ class TestOpenAIChatCompletionsRunner:
         mock_choice = Mock()
         mock_choice.message = mock_message
 
+        mock_usage = Mock()
+        mock_usage.prompt_tokens = 10
+        mock_usage.completion_tokens = 20
+
         mock_response = Mock()
         mock_response.choices = [mock_choice]
+        mock_response.usage = mock_usage
 
         self.mock_llm_client.send_request.return_value = mock_response
+        self.mock_llm_client.model = "gpt-4o-mini"
 
         mock_callback = Mock()
         self.runner.loop("Test prompt", callback=mock_callback)
@@ -814,8 +885,18 @@ class TestOpenAIChatCompletionsRunner:
 
         with patch.object(self.runner, "loop") as mock_loop:
             mock_loop.side_effect = [
-                [{"role": "assistant", "content": "Hi"}],
-                [{"role": "assistant", "content": "Please stop now"}],
+                LoopResult(
+                    new_messages=[{"role": "assistant", "content": "Hi"}],
+                    all_messages=[{"role": "assistant", "content": "Hi"}],
+                    tokens=TokenUsage(input_tokens=10, output_tokens=20, total_tokens=30),
+                    cost=CostInfo(input_cost=0.001, output_cost=0.002, total_cost=0.003),
+                ),
+                LoopResult(
+                    new_messages=[{"role": "assistant", "content": "Please stop now"}],
+                    all_messages=[{"role": "assistant", "content": "Please stop now"}],
+                    tokens=TokenUsage(input_tokens=10, output_tokens=20, total_tokens=30),
+                    cost=CostInfo(input_cost=0.001, output_cost=0.002, total_cost=0.003),
+                ),
             ]
 
             self.runner.run(stop_criteria=stop_criteria)
