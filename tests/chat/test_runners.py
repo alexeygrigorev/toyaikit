@@ -8,6 +8,7 @@ from toyaikit.chat.interface import ChatInterface
 from toyaikit.chat.runners import (
     ChatRunner,
     DisplayingRunnerCallback,
+    LoopResult,
     OpenAIAgentsSDKRunner,
     OpenAIChatCompletionsRunner,
     OpenAIResponsesRunner,
@@ -15,7 +16,7 @@ from toyaikit.chat.runners import (
     RunnerCallback,
 )
 from toyaikit.llm import LLMClient
-from toyaikit.pricing import CostInfo, LoopResult, TokenUsage
+from toyaikit.pricing import CostInfo, TokenUsage
 from toyaikit.tools import Tools
 
 
@@ -208,6 +209,7 @@ class TestOpenAIResponsesRunner:
         assert result.tokens.total_tokens == 30
         assert isinstance(result.cost, CostInfo)
         assert result.cost.total_cost > 0
+        assert result.last_message == "Hello"
 
     def test_loop_with_previous_messages(self):
         """Test loop method with previous messages"""
@@ -295,6 +297,7 @@ class TestOpenAIResponsesRunner:
         """Test run method for interactive chat"""
         # Mock user inputs: first "hello", then "stop"
         self.mock_interface.input.side_effect = ["hello", "stop"]
+        self.mock_llm_client.model = "gpt-4o-mini"
 
         # Mock loop response
         with patch.object(self.runner, "loop") as mock_loop:
@@ -303,6 +306,7 @@ class TestOpenAIResponsesRunner:
                 all_messages=[{"role": "assistant", "content": "Hi there"}],
                 tokens=TokenUsage(input_tokens=10, output_tokens=20, total_tokens=30),
                 cost=CostInfo(input_cost=0.001, output_cost=0.002, total_cost=0.003),
+                last_message="Hi there",
             )
 
             self.runner.run()
@@ -320,6 +324,7 @@ class TestOpenAIResponsesRunner:
         """Test run method with previous messages"""
         previous_messages = [{"role": "system", "content": "Previous"}]
         self.mock_interface.input.side_effect = ["hello", "stop"]
+        self.mock_llm_client.model = "gpt-4o-mini"
 
         with patch.object(self.runner, "loop") as mock_loop:
             mock_loop.return_value = LoopResult(
@@ -327,6 +332,7 @@ class TestOpenAIResponsesRunner:
                 all_messages=[{"role": "assistant", "content": "Hi"}],
                 tokens=TokenUsage(input_tokens=10, output_tokens=20, total_tokens=30),
                 cost=CostInfo(input_cost=0.001, output_cost=0.002, total_cost=0.003),
+                last_message="Hi",
             )
 
             self.runner.run(previous_messages=previous_messages)
@@ -348,6 +354,7 @@ class TestOpenAIResponsesRunner:
     def test_run_with_stop_criteria(self):
         """Test run method with stop criteria function"""
         self.mock_interface.input.side_effect = ["hello", "world", "more"]
+        self.mock_llm_client.model = "gpt-4o-mini"
 
         # Stop criteria that returns True after second message
         def stop_criteria(messages):
@@ -360,12 +367,14 @@ class TestOpenAIResponsesRunner:
                     all_messages=[{"role": "assistant", "content": "Hi"}],
                     tokens=TokenUsage(input_tokens=10, output_tokens=20, total_tokens=30),
                     cost=CostInfo(input_cost=0.001, output_cost=0.002, total_cost=0.003),
+                    last_message="Hi",
                 ),
                 LoopResult(
                     new_messages=[{"role": "assistant", "content": "Please stop"}],
                     all_messages=[{"role": "assistant", "content": "Please stop"}],
                     tokens=TokenUsage(input_tokens=10, output_tokens=20, total_tokens=30),
                     cost=CostInfo(input_cost=0.001, output_cost=0.002, total_cost=0.003),
+                    last_message="Please stop",
                 ),
             ]
 
@@ -801,6 +810,7 @@ class TestOpenAIChatCompletionsRunner:
     def test_run_interactive_chat(self):
         """Test run method for interactive chat"""
         self.mock_interface.input.side_effect = ["hello", "stop"]
+        self.mock_llm_client.model = "gpt-4o-mini"
 
         with patch.object(self.runner, "loop") as mock_loop:
             mock_loop.return_value = LoopResult(
@@ -808,6 +818,7 @@ class TestOpenAIChatCompletionsRunner:
                 all_messages=[{"role": "assistant", "content": "Hi"}],
                 tokens=TokenUsage(input_tokens=10, output_tokens=20, total_tokens=30),
                 cost=CostInfo(input_cost=0.001, output_cost=0.002, total_cost=0.003),
+                last_message="Hi",
             )
 
             self.runner.run()
@@ -879,6 +890,7 @@ class TestOpenAIChatCompletionsRunner:
     def test_run_with_stop_criteria(self):
         """Test run method with stop criteria"""
         self.mock_interface.input.side_effect = ["hello", "world"]
+        self.mock_llm_client.model = "gpt-4o-mini"
 
         def stop_criteria(messages):
             return any("stop" in str(msg) for msg in messages)
@@ -890,12 +902,14 @@ class TestOpenAIChatCompletionsRunner:
                     all_messages=[{"role": "assistant", "content": "Hi"}],
                     tokens=TokenUsage(input_tokens=10, output_tokens=20, total_tokens=30),
                     cost=CostInfo(input_cost=0.001, output_cost=0.002, total_cost=0.003),
+                    last_message="Hi",
                 ),
                 LoopResult(
                     new_messages=[{"role": "assistant", "content": "Please stop now"}],
                     all_messages=[{"role": "assistant", "content": "Please stop now"}],
                     tokens=TokenUsage(input_tokens=10, output_tokens=20, total_tokens=30),
                     cost=CostInfo(input_cost=0.001, output_cost=0.002, total_cost=0.003),
+                    last_message="Please stop now",
                 ),
             ]
 

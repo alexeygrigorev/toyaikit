@@ -1,2 +1,0 @@
-# maintained for backward compatibility
-

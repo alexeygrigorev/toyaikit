@@ -15,14 +15,6 @@ class CostInfo:
     total_cost: float
 
 
-@dataclass
-class LoopResult:
-    new_messages: list
-    all_messages: list
-    tokens: TokenUsage
-    cost: CostInfo
-
-
 class PricingConfig:
     _instance = None
     _pricing = None
