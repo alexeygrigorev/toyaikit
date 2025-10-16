@@ -79,8 +79,8 @@ def test_chatassistant_function_call_flow_with_fakes():
     message = D(type="message", content=[D(text="Here is your answer.")])
 
     mock_llm_client.send_request.side_effect = [
-        MagicMock(output=[function_call1, function_call2]),
-        MagicMock(output=[message]),
+        MagicMock(output=[function_call1, function_call2], usage=MagicMock(model="gpt-4o", input_tokens=1500, output_tokens=800)),
+        MagicMock(output=[message], usage=MagicMock(model="gpt-4o", input_tokens=1500, output_tokens=800)),
     ]
 
     assistant = ChatAssistant(
@@ -127,8 +127,8 @@ def test_chatassistant_order_message_and_function_calls():
 
     # The LLM first returns a message and two function calls, then a message
     mock_llm_client.send_request.side_effect = [
-        MagicMock(output=[message1, function_call1, function_call2]),
-        MagicMock(output=[message2]),
+        MagicMock(output=[message1, function_call1, function_call2], usage=MagicMock(model="gpt-4o", input_tokens=1500, output_tokens=800)),
+        MagicMock(output=[message2], usage=MagicMock(model="gpt-4o", input_tokens=1500, output_tokens=800)),
     ]
 
     mock_tools = MagicMock()
