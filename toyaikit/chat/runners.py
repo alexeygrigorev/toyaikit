@@ -163,9 +163,9 @@ class OpenAIResponsesRunner(ChatRunner):
         )
 
         token_usage = TokenUsage(
+            model=self.llm_client.model,
             input_tokens=total_input_tokens,
             output_tokens=total_output_tokens,
-            total_tokens=total_input_tokens + total_output_tokens,
         )
 
         new_messages = chat_messages[prev_messages_len:]
@@ -225,9 +225,9 @@ class OpenAIResponsesRunner(ChatRunner):
             self.llm_client.model, total_input_tokens, total_output_tokens
         )
         combined_tokens = TokenUsage(
+            model=self.llm_client.model,
             input_tokens=total_input_tokens,
-            output_tokens=total_output_tokens,
-            total_tokens=total_input_tokens + total_output_tokens,
+            output_tokens=total_output_tokens
         )
 
         return LoopResult(
@@ -443,9 +443,9 @@ class OpenAIChatCompletionsRunner(ChatRunner):
         )
 
         token_usage = TokenUsage(
+            model=self.llm_client.model,
             input_tokens=total_input_tokens,
             output_tokens=total_output_tokens,
-            total_tokens=total_input_tokens + total_output_tokens,
         )
 
         new_messages = chat_messages[prev_messages_len:]
@@ -494,9 +494,9 @@ class OpenAIChatCompletionsRunner(ChatRunner):
             self.llm_client.model, total_input_tokens, total_output_tokens
         )
         combined_tokens = TokenUsage(
+            model=self.llm_client.model,
             input_tokens=total_input_tokens,
             output_tokens=total_output_tokens,
-            total_tokens=total_input_tokens + total_output_tokens,
         )
 
         return LoopResult(

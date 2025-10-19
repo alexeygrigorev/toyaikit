@@ -3,6 +3,7 @@ from unittest.mock import MagicMock, call
 
 from toyaikit.chat.chat import ChatAssistant
 from toyaikit.llm import OpenAIClient
+from toyaikit.pricing import TokenUsage
 
 
 def test_openaiclient_send_request():
@@ -79,9 +80,13 @@ def test_chatassistant_function_call_flow_with_fakes():
     message = D(type="message", content=[D(text="Here is your answer.")])
 
     mock_llm_client.send_request.side_effect = [
-        MagicMock(output=[function_call1, function_call2], usage=MagicMock(model="gpt-4o", input_tokens=1500, output_tokens=800)),
-        MagicMock(output=[message], usage=MagicMock(model="gpt-4o", input_tokens=1500, output_tokens=800)),
+        MagicMock(output=[function_call1, function_call2], usage=TokenUsage(model="gpt-4o", input_tokens=1500, output_tokens=800)),
+        MagicMock(output=[message], usage=TokenUsage(model="gpt-4o", input_tokens=1500, output_tokens=800)),
     ]
+    # mock_llm_client.send_request.side_effect = [
+    #     MagicMock(output=[function_call1, function_call2]),
+    #     MagicMock(output=[message]),
+    # ]
 
     assistant = ChatAssistant(
         tools=mock_tools,
