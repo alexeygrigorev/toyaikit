@@ -86,6 +86,3 @@ class PricingConfig:
             return True
         print("Not able to update price at the moment. Please try again later.")
         return False
-
-
-PricingConfig().list_all_models("x-ai")
