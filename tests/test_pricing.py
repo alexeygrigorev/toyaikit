@@ -79,7 +79,7 @@ class TestPricingConfig:
         sys.stdout = captured_output
 
         try:
-            self.pricing_config.list_all_models(provider_filter="IamBatman")
+            self.pricing_config.list_all_models()
             output = captured_output.getvalue()
 
             assert "openai:gpt-4o-mini: gpt 4o mini\n" in output

@@ -177,7 +177,7 @@ class TestOpenAIResponsesRunner:
         message_entry = SimpleNamespace(
             type="message", content=[SimpleNamespace(text="Hello")]
         )
-        mock_usage = SimpleNamespace(model="gpt-4o", input_tokens=10, output_tokens=20)
+        mock_usage = SimpleNamespace(model="gpt-4o-mini", input_tokens=10, output_tokens=20)
         mock_response = SimpleNamespace(output=[message_entry], usage=mock_usage)
         self.mock_llm_client.send_request.return_value = mock_response
         self.mock_llm_client.model = "gpt-4o-mini"
@@ -204,7 +204,7 @@ class TestOpenAIResponsesRunner:
         }
         assert result.new_messages[1] == {"role": "user", "content": "Test prompt"}
         assert result.new_messages[2] == message_entry
-        assert result.tokens.model == "gpt-4o"
+        assert result.tokens.model == "gpt-4o-mini"
         assert result.tokens.input_tokens == 10
         assert result.tokens.output_tokens == 20
         assert isinstance(result.cost, CostInfo)
