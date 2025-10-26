@@ -1,6 +1,9 @@
-from toyaikit.pricing import PricingConfig
-from genai_prices import calc_price, Usage
+from decimal import Decimal
+
 import pytest
+from genai_prices import Usage, calc_price
+
+from toyaikit.pricing import PricingConfig
 
 
 class TestPricingConfig:
@@ -12,7 +15,7 @@ class TestPricingConfig:
         """Test working of calculate cost function.
         """
         input_tokens = 1000
-        output_tokens = 0
+        output_tokens = 500
         model = 'gpt-5'
 
         genai_result = calc_price(
@@ -24,6 +27,57 @@ class TestPricingConfig:
         assert pricing_config_result.input_cost == genai_result.input_price
         assert pricing_config_result.output_cost == genai_result.output_price
         assert pricing_config_result.total_cost == genai_result.total_price
+
+    def test_calculate_cost_gpt_4o_mini(self):
+        """Test working of calculate cost function.
+        """
+        input_tokens = 40000
+        output_tokens = 1500
+        model = 'gpt-4o-mini'
+
+        pricing_config_result = self.pricing_config.calculate_cost(
+            model=model,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens
+        )
+
+        assert pricing_config_result.input_cost == Decimal('0.006')
+        assert pricing_config_result.output_cost == Decimal('0.0009')
+        assert pricing_config_result.total_cost == Decimal('0.0009') + Decimal('0.006')
+
+    def test_calculate_cost_openai_gpt_4o_mini(self):
+        """Test working of calculate cost function.
+        """
+        input_tokens = 40000
+        output_tokens = 1500
+        model = 'openai:gpt-4o-mini'
+
+        pricing_config_result = self.pricing_config.calculate_cost(
+            model=model,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens
+        )
+
+        assert pricing_config_result.input_cost ==  Decimal('0.006')
+        assert pricing_config_result.output_cost == Decimal('0.0009')
+        assert pricing_config_result.total_cost == Decimal('0.0009') + Decimal('0.006')
+
+    def test_calculate_cost_anthropic_claude_sonnet(self):
+        """Test working of calculate cost function.
+        """
+        input_tokens = 40000
+        output_tokens = 1500
+        model = 'anthropic:claude-sonnet-4-5-20250929'
+
+        pricing_config_result = self.pricing_config.calculate_cost(
+            model=model,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens
+        )
+
+        assert pricing_config_result.input_cost == Decimal('0.12')
+        assert pricing_config_result.output_cost == Decimal('0.0225')
+        assert pricing_config_result.total_cost == Decimal('0.0225') + Decimal('0.12')
 
     def test_calculate_cost_wrong_model(self):
         """Test calculate cost with wrong model name.
@@ -39,7 +93,7 @@ class TestPricingConfig:
     def test_list_all_models(self):
         """Test list all models function.
         """
-        model_dict = self.pricing_config.list_all_models()
+        model_dict = self.pricing_config.all_available_models()
         assert isinstance(model_dict, dict)
         assert len(model_dict) > 0
         for provider, models in model_dict.items():

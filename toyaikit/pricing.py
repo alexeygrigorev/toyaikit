@@ -1,7 +1,8 @@
 from dataclasses import dataclass
-from genai_prices import calc_price, Usage
-from genai_prices.data import providers
 from decimal import Decimal
+
+from genai_prices import Usage, calc_price
+from genai_prices import data as genai_data
 
 
 @dataclass
@@ -29,29 +30,37 @@ class PricingConfig:
         :return CostInfo: Object containing input cost, ouput cost and total cost
         """
         try:
+            provider = None
+            if ':' in model:
+                provider, model = model.rsplit(':', maxsplit=1)
+
+            token_usage = Usage(input_tokens=input_tokens, output_tokens=output_tokens)
             price_data = calc_price(
-                Usage(input_tokens=input_tokens, output_tokens=output_tokens), model_ref=model)
+                token_usage,
+                provider_id=provider,
+                model_ref=model
+            )
+
         except LookupError as le:
             raise LookupError(
-                "Please check model name. Use list_all_models function to see list of supported models.")
+                "Please check model name. Use list_all_models function to see list of supported models.", le)
 
         return CostInfo(
             input_cost=price_data.input_price, output_cost=price_data.output_price, total_cost=price_data.total_price
         )
 
-    def list_all_models(self):
+    def all_available_models(self):
         """Lists all available models which has price data.
 
         :return dict: Dictionary with provider as key and list of models as value
         """
 
         model_dict = {}
-        for provider in providers:
+
+        for provider in genai_data.providers:
             model_dict[provider.id] = []
             for model in provider.models:
                 model_name = f'{model.id}'
-                if model.name:
-                    model_name += f': {model.name}'
                 model_dict[provider.id].append(model_name)
 
         return model_dict
