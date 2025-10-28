@@ -85,6 +85,7 @@ class TestSubprocessMCPTransport:
     def test_stop_process(self, mock_popen):
         """Test stopping the subprocess."""
         mock_process = Mock()
+        mock_process.poll.return_value = None  # Process is running
         mock_popen.return_value = mock_process
 
         transport = SubprocessMCPTransport(["python", "-m", "server"])
@@ -105,6 +106,7 @@ class TestSubprocessMCPTransport:
     def test_send_data(self, mock_popen):
         """Test sending JSON data to subprocess."""
         mock_process = Mock()
+        mock_process.poll.return_value = None  # Process is running
         mock_popen.return_value = mock_process
 
         transport = SubprocessMCPTransport(["python", "-m", "server"])
@@ -128,6 +130,7 @@ class TestSubprocessMCPTransport:
     def test_send_unicode_data(self, mock_popen):
         """Test sending Unicode data."""
         mock_process = Mock()
+        mock_process.poll.return_value = None  # Process is running
         mock_popen.return_value = mock_process
 
         transport = SubprocessMCPTransport(["python", "-m", "server"])
@@ -144,6 +147,7 @@ class TestSubprocessMCPTransport:
     def test_send_unicode_error(self, mock_popen):
         """Test handling Unicode encoding errors during send."""
         mock_process = Mock()
+        mock_process.poll.return_value = None  # Process is running
         mock_process.stdin.write.side_effect = UnicodeEncodeError(
             "utf-8", "test string", 0, 1, "invalid start byte"
         )
@@ -159,6 +163,7 @@ class TestSubprocessMCPTransport:
     def test_receive_data(self, mock_popen):
         """Test receiving JSON data from subprocess."""
         mock_process = Mock()
+        mock_process.poll.return_value = None  # Process is running
         test_response = {"result": "success", "value": 123}
         mock_process.stdout.readline.return_value = json.dumps(test_response) + "\n"
         mock_popen.return_value = mock_process
@@ -175,6 +180,7 @@ class TestSubprocessMCPTransport:
     def test_receive_empty_response(self, mock_popen):
         """Test handling empty response from subprocess."""
         mock_process = Mock()
+        mock_process.poll.return_value = None  # Process is running
         mock_process.stdout.readline.return_value = ""
         mock_popen.return_value = mock_process
 
@@ -188,6 +194,7 @@ class TestSubprocessMCPTransport:
     def test_receive_invalid_json(self, mock_popen):
         """Test handling invalid JSON response."""
         mock_process = Mock()
+        mock_process.poll.return_value = None  # Process is running
         mock_process.stdout.readline.return_value = "invalid json"
         mock_popen.return_value = mock_process
 
@@ -208,6 +215,7 @@ class TestSubprocessMCPTransport:
     def test_receive_unicode_decode_error(self, mock_popen):
         """Test handling Unicode decoding errors during receive."""
         mock_process = Mock()
+        mock_process.poll.return_value = None  # Process is running
         mock_process.stdout.readline.side_effect = UnicodeDecodeError(
             "utf-8", b"invalid bytes", 0, 1, "invalid start byte"
         )
@@ -223,6 +231,7 @@ class TestSubprocessMCPTransport:
     def test_full_lifecycle(self, mock_popen):
         """Test complete start-send-receive-stop lifecycle."""
         mock_process = Mock()
+        mock_process.poll.return_value = None  # Process is running
         mock_process.stdout.readline.return_value = '{"status": "ok"}\n'
         mock_popen.return_value = mock_process
 
@@ -244,3 +253,121 @@ class TestSubprocessMCPTransport:
         transport.stop()
         mock_process.terminate.assert_called_once()
         mock_process.wait.assert_called_once()
+
+    @patch("toyaikit.mcp.transport.subprocess.Popen")
+    def test_send_broken_pipe_error(self, mock_popen):
+        """Test handling BrokenPipeError when sending to terminated process."""
+        mock_process = Mock()
+        mock_process.poll.return_value = None  # Process appears alive initially
+        mock_process.stdin.write.side_effect = BrokenPipeError("Broken pipe")
+        mock_popen.return_value = mock_process
+
+        transport = SubprocessMCPTransport(["python", "-m", "server"])
+        transport.start()
+
+        with pytest.raises(
+            RuntimeError, match="Server process has terminated \\(broken pipe\\)"
+        ):
+            transport.send({"test": "data"})
+
+    @patch("toyaikit.mcp.transport.subprocess.Popen")
+    def test_send_to_terminated_process(self, mock_popen):
+        """Test sending data to already terminated process."""
+        mock_process = Mock()
+        mock_process.poll.return_value = 0  # Process has terminated
+        mock_popen.return_value = mock_process
+
+        transport = SubprocessMCPTransport(["python", "-m", "server"])
+        transport.start()
+
+        with pytest.raises(RuntimeError, match="Server process has terminated"):
+            transport.send({"test": "data"})
+
+    @patch("toyaikit.mcp.transport.subprocess.Popen")
+    def test_receive_from_terminated_process(self, mock_popen):
+        """Test receiving data from already terminated process."""
+        mock_process = Mock()
+        mock_process.poll.return_value = 0  # Process has terminated
+        mock_popen.return_value = mock_process
+
+        transport = SubprocessMCPTransport(["python", "-m", "server"])
+        transport.start()
+
+        with pytest.raises(RuntimeError, match="Server process has terminated"):
+            transport.receive()
+
+    @patch("toyaikit.mcp.transport.subprocess.Popen")
+    def test_receive_os_error(self, mock_popen):
+        """Test handling OSError when receiving data."""
+        mock_process = Mock()
+        mock_process.poll.return_value = None
+        mock_process.stdout.readline.side_effect = OSError("Read error")
+        mock_popen.return_value = mock_process
+
+        transport = SubprocessMCPTransport(["python", "-m", "server"])
+        transport.start()
+
+        with pytest.raises(RuntimeError, match="Communication error: Read error"):
+            transport.receive()
+
+    def test_is_alive_no_process(self):
+        """Test is_alive when no process exists."""
+        transport = SubprocessMCPTransport(["python", "-m", "server"])
+        assert not transport.is_alive()
+
+    @patch("toyaikit.mcp.transport.subprocess.Popen")
+    def test_is_alive_running_process(self, mock_popen):
+        """Test is_alive when process is running."""
+        mock_process = Mock()
+        mock_process.poll.return_value = None  # Process is running
+        mock_popen.return_value = mock_process
+
+        transport = SubprocessMCPTransport(["python", "-m", "server"])
+        transport.start()
+        assert transport.is_alive()
+
+    @patch("toyaikit.mcp.transport.subprocess.Popen")
+    def test_is_alive_terminated_process(self, mock_popen):
+        """Test is_alive when process has terminated."""
+        mock_process = Mock()
+        mock_process.poll.return_value = 0  # Process has terminated
+        mock_popen.return_value = mock_process
+
+        transport = SubprocessMCPTransport(["python", "-m", "server"])
+        transport.start()
+        assert not transport.is_alive()
+
+    @patch("toyaikit.mcp.transport.subprocess.Popen")
+    def test_stop_already_terminated_process(self, mock_popen):
+        """Test stopping a process that has already terminated."""
+        mock_process = Mock()
+        mock_process.poll.return_value = 0  # Already terminated
+        mock_popen.return_value = mock_process
+
+        transport = SubprocessMCPTransport(["python", "-m", "server"])
+        transport.start()
+        transport.stop()
+
+        # Should not call terminate or wait on already terminated process
+        mock_process.terminate.assert_not_called()
+        mock_process.wait.assert_not_called()
+
+    @patch("toyaikit.mcp.transport.subprocess.Popen")
+    def test_stop_with_timeout_and_kill(self, mock_popen):
+        """Test stopping a process that doesn't respond to terminate."""
+        mock_process = Mock()
+        mock_process.poll.return_value = None
+        # First wait call times out, second wait call (after kill) succeeds
+        mock_process.wait.side_effect = [
+            subprocess.TimeoutExpired("timeout", 5.0),
+            None,
+        ]
+        mock_popen.return_value = mock_process
+
+        transport = SubprocessMCPTransport(["python", "-m", "server"])
+        transport.start()
+        transport.stop()
+
+        mock_process.terminate.assert_called_once()
+        mock_process.kill.assert_called_once()
+        assert mock_process.wait.call_count == 2
