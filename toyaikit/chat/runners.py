@@ -15,6 +15,7 @@ from toyaikit.tools import Tools
 # instance of pydantic BaseModel
 T = TypeVar("T", str, BaseModel)
 
+
 @dataclass
 class LoopResult(Generic[T]):
     new_messages: list
@@ -139,7 +140,7 @@ class OpenAIResponsesRunner(ChatRunner):
             response = self.llm_client.send_request(
                 chat_messages=chat_messages,
                 tools=self.tools,
-                output_format=output_format
+                output_format=output_format,
             )
 
             if hasattr(response, "usage") and response.usage:
@@ -183,9 +184,7 @@ class OpenAIResponsesRunner(ChatRunner):
             if entry.type == "message":
                 last_message_text = entry.content[0].text
                 if output_format:
-                    last_message = output_format.model_validate_json(
-                        last_message_text
-                    )
+                    last_message = output_format.model_validate_json(last_message_text)
                 else:
                     last_message = last_message_text
                 break
@@ -241,7 +240,7 @@ class OpenAIResponsesRunner(ChatRunner):
         combined_tokens = TokenUsage(
             model=self.llm_client.model,
             input_tokens=total_input_tokens,
-            output_tokens=total_output_tokens
+            output_tokens=total_output_tokens,
         )
 
         return LoopResult(
@@ -410,7 +409,9 @@ class OpenAIChatCompletionsRunner(ChatRunner):
         total_output_tokens = 0
 
         while True:
-            reponse = self.llm_client.send_request(chat_messages, self.tools, output_format)
+            reponse = self.llm_client.send_request(
+                chat_messages, self.tools, output_format
+            )
 
             if hasattr(reponse, "usage") and reponse.usage:
                 total_input_tokens += reponse.usage.prompt_tokens
@@ -467,9 +468,7 @@ class OpenAIChatCompletionsRunner(ChatRunner):
 
         last_message_text = (message_response.content or "").strip()
         if output_format:
-            last_message = output_format.model_validate_json(
-                last_message_text
-            )
+            last_message = output_format.model_validate_json(last_message_text)
         else:
             last_message = last_message_text
 

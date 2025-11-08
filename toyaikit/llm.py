@@ -1,8 +1,6 @@
 from typing import List
 
 from openai import OpenAI
-from openai.lib._parsing._responses import type_to_text_format_param, parse_response
-
 from pydantic import BaseModel
 
 from toyaikit.tools import Tools

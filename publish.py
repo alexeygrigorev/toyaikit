@@ -3,6 +3,7 @@
 Script to increment version and publish package to PyPI.
 Increments the last part of the version (patch version).
 """
+
 import subprocess
 import sys
 from pathlib import Path
@@ -13,13 +14,13 @@ LIBRARY = "toyaikit"
 def get_current_version():
     """Read current version from __version__.py"""
     version_file = Path(__file__).parent / LIBRARY / "__version__.py"
-    with open(version_file, 'r') as f:
+    with open(version_file, "r") as f:
         content = f.read()
 
     # Extract version string
-    for line in content.split('\n'):
-        if line.startswith('__version__'):
-            version = line.split('=')[1].strip().strip('"').strip("'")
+    for line in content.split("\n"):
+        if line.startswith("__version__"):
+            version = line.split("=")[1].strip().strip('"').strip("'")
             return version
 
     raise ValueError("Could not find __version__ in __version__.py")
@@ -27,16 +28,15 @@ def get_current_version():
 
 def increment_version(version):
     """Increment the patch version (last part)"""
-    parts = version.split('.')
+    parts = version.split(".")
     parts[-1] = str(int(parts[-1]) + 1)
-    return '.'.join(parts)
-
+    return ".".join(parts)
 
 
 def update_version(new_version):
     """Update version in __version__.py"""
     version_file = Path(__file__).parent / LIBRARY / "__version__.py"
-    with open(version_file, 'w') as f:
+    with open(version_file, "w") as f:
         f.write(f"__version__ = '{new_version}'\n")
     print(f"✓ Updated version to {new_version}")
 
@@ -71,7 +71,7 @@ def main():
 
     # Confirm
     response = input("\nProceed with version increment and publish? (y/n): ")
-    if response.lower() != 'y':
+    if response.lower() != "y":
         print("Aborted.")
         sys.exit(0)
 
@@ -83,18 +83,21 @@ def main():
 
     # Publish to test PyPI
     response = input("\nPublish to test PyPI? (y/n): ")
-    if response.lower() == 'y':
-        run_command("python -m uv run hatch publish --repo test", "Publishing to test PyPI")
+    if response.lower() == "y":
+        run_command(
+            "python -m uv run hatch publish --repo test", "Publishing to test PyPI"
+        )
 
     # Publish to PyPI
     response = input("\nPublish to production PyPI? (y/n): ")
-    if response.lower() == 'y':
+    if response.lower() == "y":
         run_command("python -m uv run hatch publish", "Publishing to PyPI")
 
     # Clean up
     response = input("\nClean up dist directory? (y/n): ")
-    if response.lower() == 'y':
+    if response.lower() == "y":
         import shutil
+
         dist_dir = Path(__file__).parent / "dist"
         if dist_dir.exists():
             shutil.rmtree(dist_dir)

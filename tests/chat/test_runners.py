@@ -177,7 +177,9 @@ class TestOpenAIResponsesRunner:
         message_entry = SimpleNamespace(
             type="message", content=[SimpleNamespace(text="Hello")]
         )
-        mock_usage = SimpleNamespace(model="gpt-4o-mini", input_tokens=10, output_tokens=20)
+        mock_usage = SimpleNamespace(
+            model="gpt-4o-mini", input_tokens=10, output_tokens=20
+        )
         mock_response = SimpleNamespace(output=[message_entry], usage=mock_usage)
         self.mock_llm_client.send_request.return_value = mock_response
         self.mock_llm_client.model = "gpt-4o-mini"
@@ -365,15 +367,23 @@ class TestOpenAIResponsesRunner:
                 LoopResult(
                     new_messages=[{"role": "assistant", "content": "Hi"}],
                     all_messages=[{"role": "assistant", "content": "Hi"}],
-                    tokens=TokenUsage(model="gpt-4o", input_tokens=10, output_tokens=20),
-                    cost=CostInfo(input_cost=0.001, output_cost=0.002, total_cost=0.003),
+                    tokens=TokenUsage(
+                        model="gpt-4o", input_tokens=10, output_tokens=20
+                    ),
+                    cost=CostInfo(
+                        input_cost=0.001, output_cost=0.002, total_cost=0.003
+                    ),
                     last_message="Hi",
                 ),
                 LoopResult(
                     new_messages=[{"role": "assistant", "content": "Please stop"}],
                     all_messages=[{"role": "assistant", "content": "Please stop"}],
-                    tokens=TokenUsage(model="gpt-4o", input_tokens=10, output_tokens=20),
-                    cost=CostInfo(input_cost=0.001, output_cost=0.002, total_cost=0.003),
+                    tokens=TokenUsage(
+                        model="gpt-4o", input_tokens=10, output_tokens=20
+                    ),
+                    cost=CostInfo(
+                        input_cost=0.001, output_cost=0.002, total_cost=0.003
+                    ),
                     last_message="Please stop",
                 ),
             ]
@@ -900,15 +910,23 @@ class TestOpenAIChatCompletionsRunner:
                 LoopResult(
                     new_messages=[{"role": "assistant", "content": "Hi"}],
                     all_messages=[{"role": "assistant", "content": "Hi"}],
-                    tokens=TokenUsage(model="gpt-4o", input_tokens=10, output_tokens=20),
-                    cost=CostInfo(input_cost=0.001, output_cost=0.002, total_cost=0.003),
+                    tokens=TokenUsage(
+                        model="gpt-4o", input_tokens=10, output_tokens=20
+                    ),
+                    cost=CostInfo(
+                        input_cost=0.001, output_cost=0.002, total_cost=0.003
+                    ),
                     last_message="Hi",
                 ),
                 LoopResult(
                     new_messages=[{"role": "assistant", "content": "Please stop now"}],
                     all_messages=[{"role": "assistant", "content": "Please stop now"}],
-                    tokens=TokenUsage(model="gpt-4o", input_tokens=10, output_tokens=20),
-                    cost=CostInfo(input_cost=0.001, output_cost=0.002, total_cost=0.003),
+                    tokens=TokenUsage(
+                        model="gpt-4o", input_tokens=10, output_tokens=20
+                    ),
+                    cost=CostInfo(
+                        input_cost=0.001, output_cost=0.002, total_cost=0.003
+                    ),
                     last_message="Please stop now",
                 ),
             ]

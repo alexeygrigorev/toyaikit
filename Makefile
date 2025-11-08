@@ -15,3 +15,15 @@ shell:
 format:
 	uv run ruff format .
 	uv run ruff check --fix .
+
+publish-build:
+	uv run hatch build
+
+publish-test:
+	uv run hatch publish --repo test
+
+publish:
+	uv run hatch publish
+
+publish-clean:
+	rm -r dist/

@@ -20,7 +20,6 @@ class CostInfo:
 
 
 class PricingConfig:
-
     def calculate_cost(self, model: str, input_tokens: int, output_tokens: int):
         """Calculate cost for a LLM API call based on token usage.
 
@@ -31,22 +30,22 @@ class PricingConfig:
         """
         try:
             provider = None
-            if ':' in model:
-                provider, model = model.rsplit(':', maxsplit=1)
+            if ":" in model:
+                provider, model = model.rsplit(":", maxsplit=1)
 
             token_usage = Usage(input_tokens=input_tokens, output_tokens=output_tokens)
-            price_data = calc_price(
-                token_usage,
-                provider_id=provider,
-                model_ref=model
-            )
+            price_data = calc_price(token_usage, provider_id=provider, model_ref=model)
 
         except LookupError as le:
             raise LookupError(
-                "Please check model name. Use list_all_models function to see list of supported models.", le)
+                "Please check model name. Use list_all_models function to see list of supported models.",
+                le,
+            )
 
         return CostInfo(
-            input_cost=price_data.input_price, output_cost=price_data.output_price, total_cost=price_data.total_price
+            input_cost=price_data.input_price,
+            output_cost=price_data.output_price,
+            total_cost=price_data.total_price,
         )
 
     def all_available_models(self):
@@ -60,7 +59,7 @@ class PricingConfig:
         for provider in genai_data.providers:
             model_dict[provider.id] = []
             for model in provider.models:
-                model_name = f'{model.id}'
+                model_name = f"{model.id}"
                 model_dict[provider.id].append(model_name)
 
         return model_dict

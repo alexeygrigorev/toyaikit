@@ -79,8 +79,7 @@ def test_chatassistant_function_call_flow_with_fakes():
     function_call2 = D(type="function_call", name="func2", arguments="{}")
     message = D(type="message", content=[D(text="Here is your answer.")])
 
-    usage = TokenUsage(
-        model="gpt-4o", input_tokens=1500, output_tokens=800)
+    usage = TokenUsage(model="gpt-4o", input_tokens=1500, output_tokens=800)
     mock_llm_client.send_request.side_effect = [
         MagicMock(output=[function_call1, function_call2], usage=usage),
         MagicMock(output=[message], usage=usage),
@@ -129,11 +128,9 @@ def test_chatassistant_order_message_and_function_calls():
     message2 = D(type="message", content=[D(text="Second message.")])
 
     # The LLM first returns a message and two function calls, then a message
-    usage = TokenUsage(
-        model="gpt-4o", input_tokens=1500, output_tokens=800)
+    usage = TokenUsage(model="gpt-4o", input_tokens=1500, output_tokens=800)
     mock_llm_client.send_request.side_effect = [
-        MagicMock(output=[message1, function_call1,
-                  function_call2], usage=usage),
+        MagicMock(output=[message1, function_call1, function_call2], usage=usage),
         MagicMock(output=[message2], usage=usage),
     ]
 
@@ -191,6 +188,5 @@ def test_chatassistant_order_message_and_function_calls():
         call.display_response("Second message."),
         call.input(),
     ]
-    actual_calls = [
-        c for c in mock_interface.mock_calls if c in expected_order]
+    actual_calls = [c for c in mock_interface.mock_calls if c in expected_order]
     assert actual_calls == expected_order
