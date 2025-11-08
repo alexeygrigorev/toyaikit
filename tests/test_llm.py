@@ -309,7 +309,7 @@ class TestOpenAIChatCompletionsClient:
         """Test send_request with output_format parameter"""
         mock_client = Mock(spec=OpenAI)
         mock_response = Mock()
-        mock_client.chat.completions.create.return_value = mock_response
+        mock_client.chat.completions.parse.return_value = mock_response
 
         # Create a mock BaseModel for output format
         class TestOutputFormat(BaseModel):
@@ -321,6 +321,9 @@ class TestOpenAIChatCompletionsClient:
         result = client.send_request(chat_messages, output_format=TestOutputFormat)
 
         assert result == mock_response
-        mock_client.chat.completions.create.assert_called_once_with(
-            model="gpt-4o-mini", messages=chat_messages, tools=[]
+        mock_client.chat.completions.parse.assert_called_once_with(
+            model="gpt-4o-mini",
+            messages=chat_messages,
+            tools=[],
+            response_format=TestOutputFormat,
         )

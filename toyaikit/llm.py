@@ -1,6 +1,8 @@
 from typing import List
 
 from openai import OpenAI
+from openai.lib._parsing._responses import type_to_text_format_param, parse_response
+
 from pydantic import BaseModel
 
 from toyaikit.tools import Tools
@@ -27,27 +29,48 @@ class OpenAIClient(LLMClient):
 
         self.extra_kwargs = extra_kwargs or {}
 
-    def send_request(self, chat_messages: List, tools: Tools = None):
+    def send_request(
+        self,
+        chat_messages: List,
+        tools: Tools = None,
+        output_format: BaseModel = None,
+    ):
         tools_list = []
+
         if tools is not None:
             tools_list = tools.get_tools()
 
-        return self.client.responses.create(
+        args = dict(
             model=self.model,
             input=chat_messages,
             tools=tools_list,
             **self.extra_kwargs,
         )
 
+        if output_format is not None:
+            return self.client.responses.parse(
+                text_format=output_format,
+                **args,
+            )
+
+        return self.client.responses.create(**args)
+
 
 class OpenAIChatCompletionsClient(LLMClient):
-    def __init__(self, model: str = "gpt-4o-mini", client: OpenAI = None):
+    def __init__(
+        self,
+        model: str = "gpt-4o-mini",
+        client: OpenAI = None,
+        extra_kwargs: dict = None,
+    ):
         self.model = model
 
         if client is None:
             self.client = OpenAI()
         else:
             self.client = client
+
+        self.extra_kwargs = extra_kwargs or {}
 
     def convert_single_tool(self, tool):
         """
@@ -88,8 +111,17 @@ class OpenAIChatCompletionsClient(LLMClient):
             tools_requests_format = tools.get_tools()
             tools_list = self.convert_api_tools_to_chat_functions(tools_requests_format)
 
-        return self.client.chat.completions.create(
+        args = dict(
             model=self.model,
             messages=chat_messages,
             tools=tools_list,
+            **self.extra_kwargs,
         )
+
+        if output_format is not None:
+            return self.client.chat.completions.parse(
+                response_format=output_format,
+                **args,
+            )
+
+        return self.client.chat.completions.create(**args)

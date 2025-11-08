@@ -2,21 +2,26 @@ import json
 import uuid
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Callable
+from typing import Callable, Generic, TypeVar
+
+from pydantic import BaseModel
 
 from toyaikit.chat.interface import ChatInterface
 from toyaikit.llm import LLMClient
 from toyaikit.pricing import CostInfo, PricingConfig, TokenUsage
 from toyaikit.tools import Tools
 
+# T must be either a str or a (subclass)
+# instance of pydantic BaseModel
+T = TypeVar("T", str, BaseModel)
 
 @dataclass
-class LoopResult:
+class LoopResult(Generic[T]):
     new_messages: list
     all_messages: list
     tokens: TokenUsage
     cost: CostInfo
-    last_message: str
+    last_message: T
 
 
 class RunnerCallback(ABC):
@@ -112,6 +117,7 @@ class OpenAIResponsesRunner(ChatRunner):
         prompt: str,
         previous_messages: list[dict] = None,
         callback: RunnerCallback = None,
+        output_format: BaseModel = None,
     ) -> LoopResult:
         chat_messages = []
         prev_messages_len = 0
@@ -133,6 +139,7 @@ class OpenAIResponsesRunner(ChatRunner):
             response = self.llm_client.send_request(
                 chat_messages=chat_messages,
                 tools=self.tools,
+                output_format=output_format
             )
 
             if hasattr(response, "usage") and response.usage:
@@ -171,9 +178,16 @@ class OpenAIResponsesRunner(ChatRunner):
         new_messages = chat_messages[prev_messages_len:]
 
         last_message_text = ""
+        last_message = None
         for entry in reversed(response.output):
             if entry.type == "message":
                 last_message_text = entry.content[0].text
+                if output_format:
+                    last_message = output_format.model_validate_json(
+                        last_message_text
+                    )
+                else:
+                    last_message = last_message_text
                 break
 
         return LoopResult(
@@ -181,7 +195,7 @@ class OpenAIResponsesRunner(ChatRunner):
             all_messages=chat_messages,
             tokens=token_usage,
             cost=cost_info,
-            last_message=last_message_text,
+            last_message=last_message,
         )
 
     def run(
