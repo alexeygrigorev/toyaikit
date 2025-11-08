@@ -192,7 +192,7 @@ class TestOpenAIResponsesRunner:
         ]
 
         self.mock_llm_client.send_request.assert_called_once_with(
-            chat_messages=expected_messages, tools=self.mock_tools
+            chat_messages=expected_messages, tools=self.mock_tools, output_format=None
         )
 
         # Should return LoopResult
@@ -232,7 +232,7 @@ class TestOpenAIResponsesRunner:
         ]
 
         self.mock_llm_client.send_request.assert_called_once_with(
-            chat_messages=expected_messages, tools=self.mock_tools
+            chat_messages=expected_messages, tools=self.mock_tools, output_format=None
         )
 
         # Should return only the new messages (after previous_messages_len)
