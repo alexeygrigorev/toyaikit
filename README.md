@@ -574,6 +574,63 @@ import asyncio
 asyncio.run(runner.run())
 ```
 
+## Structured Output
+
+The `OpenAIResponsesRunner` and `OpenAIChatCompletionsRunner` support structured output using Pydantic models. This allows you to get responses in a specific format:
+
+### Using OpenAIResponsesRunner
+
+```python
+from pydantic import BaseModel
+from toyaikit.llm import OpenAIClient
+from toyaikit.chat.runners import OpenAIResponsesRunner
+
+# Define your response structure
+class TestResponse(BaseModel):
+    hello: bool
+    world: str
+
+# Create the runner
+runner = OpenAIResponsesRunner(llm_client=OpenAIClient())
+
+# Use structured output
+result = runner.loop(prompt='how are you', output_format=TestResponse)
+print(result.last_message)
+# Output: TestResponse(hello=True, world="I'm doing well, thank you! How can I assist you today?")
+
+# Or use without structured output for free-form text
+result = runner.loop(prompt='how are you')
+print(result.last_message)
+# Output: "I'm just a program, but I'm here and ready to help you! How can I assist you today?"
+```
+
+### Using OpenAIChatCompletionsRunner
+
+```python
+from pydantic import BaseModel
+from toyaikit.llm import OpenAIChatCompletionsClient
+from toyaikit.chat.runners import OpenAIChatCompletionsRunner
+
+# Define your response structure
+class TestResponse(BaseModel):
+    hello: bool
+    world: str
+
+# Create the runner
+runner = OpenAIChatCompletionsRunner(llm_client=OpenAIChatCompletionsClient())
+
+# Use structured output
+result = runner.loop(prompt='how are you', output_format=TestResponse)
+print(result.last_message)
+# Output: TestResponse(hello=True, world="I'm doing well, thank you! How can I assist you today?")
+
+# Or use without structured output for free-form text
+result = runner.loop(prompt='how are you')
+print(result.last_message)
+# Output: "I'm just a program, but I'm here and ready to help you! How can I assist you today?"
+```
+
+
 ## Use Cases & Best Practices
 
 ### When to Use ToyAIKit

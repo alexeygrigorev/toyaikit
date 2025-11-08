@@ -370,10 +370,10 @@ class OpenAIChatCompletionsRunner(ChatRunner):
 
     def __init__(
         self,
-        tools: Tools,
-        developer_prompt: str,
-        chat_interface: ChatInterface,
-        llm_client: LLMClient,
+        tools: Tools = None,
+        developer_prompt: str = "You're a helpful assistant.",
+        chat_interface: ChatInterface = None,
+        llm_client: LLMClient = None,
     ):
         self.tools = tools
         self.developer_prompt = developer_prompt
@@ -393,6 +393,7 @@ class OpenAIChatCompletionsRunner(ChatRunner):
         prompt: str,
         previous_messages: list = None,
         callback: RunnerCallback = None,
+        output_format: BaseModel = None,
     ) -> LoopResult:
         chat_messages = []
         prev_messages_len = 0
@@ -409,7 +410,7 @@ class OpenAIChatCompletionsRunner(ChatRunner):
         total_output_tokens = 0
 
         while True:
-            reponse = self.llm_client.send_request(chat_messages, self.tools)
+            reponse = self.llm_client.send_request(chat_messages, self.tools, output_format)
 
             if hasattr(reponse, "usage") and reponse.usage:
                 total_input_tokens += reponse.usage.prompt_tokens
@@ -465,13 +466,19 @@ class OpenAIChatCompletionsRunner(ChatRunner):
         new_messages = chat_messages[prev_messages_len:]
 
         last_message_text = (message_response.content or "").strip()
+        if output_format:
+            last_message = output_format.model_validate_json(
+                last_message_text
+            )
+        else:
+            last_message = last_message_text
 
         return LoopResult(
             new_messages=new_messages,
             all_messages=chat_messages,
             tokens=token_usage,
             cost=cost_info,
-            last_message=last_message_text,
+            last_message=last_message,
         )
 
     def run(self, stop_criteria: Callable = None) -> LoopResult:
