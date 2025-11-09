@@ -3,6 +3,8 @@ import json
 from typing import get_type_hints
 
 
+from openai.types.responses.response_input_param import FunctionCallOutput
+
 class Tools:
     def __init__(self):
         self.tools = {}
@@ -60,7 +62,7 @@ class Tools:
         """
         return list(self.tools.values())
 
-    def function_call(self, tool_call_response):
+    def function_call(self, tool_call_response) -> FunctionCallOutput:
         """
         Handle a function call from the LLM.
 
@@ -75,20 +77,20 @@ class Tools:
             arguments = json.loads(tool_call_response.arguments)
             f = self.functions[function_name]
             result = f(**arguments)
-            return {
-                "type": "function_call_output",
-                "call_id": tool_call_response.call_id,
-                "output": json.dumps(result, indent=2),
-            }
+            return FunctionCallOutput(
+                type="function_call_output",
+                call_id=tool_call_response.call_id,
+                output=json.dumps(result, indent=2),
+            )
         except Exception as e:
             error_name = e.__class__.__name__
             error_message = str(e)
             error = {"error": f"{error_name}: {error_message}"}
-            return {
-                "type": "function_call_output",
-                "call_id": tool_call_response.call_id,
-                "output": json.dumps(error, indent=2),
-            }
+            return FunctionCallOutput(
+                type="function_call_output",
+                call_id=tool_call_response.call_id,
+                output=json.dumps(error, indent=2),
+            )
 
 
 def generate_function_schema(func, description=None):

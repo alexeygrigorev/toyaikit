@@ -187,25 +187,32 @@ class TestOpenAIResponsesRunner:
         result = self.runner.loop("Test prompt")
 
         # Should add developer prompt and user message
-        expected_messages = [
-            {"role": "developer", "content": "Test developer prompt"},
-            {"role": "user", "content": "Test prompt"},
-            message_entry,
-        ]
+        # Accept either dicts or typed message objects by inspecting fields
+        args, kwargs = self.mock_llm_client.send_request.call_args
+        assert kwargs["tools"] is self.mock_tools
+        assert kwargs["output_format"] is None
+        chat_messages = kwargs["chat_messages"]
 
-        self.mock_llm_client.send_request.assert_called_once_with(
-            chat_messages=expected_messages, tools=self.mock_tools, output_format=None
-        )
+        def rc(x):
+            if isinstance(x, dict):
+                return x.get("role"), x.get("content")
+            return getattr(x, "role", None), getattr(x, "content", None)
+
+        assert len(chat_messages) == 3
+        assert rc(chat_messages[0]) == ("developer", "Test developer prompt")
+        assert rc(chat_messages[1]) == ("user", "Test prompt")
+        # third entry should be the same message object appended after the call
+        assert chat_messages[2] is message_entry
 
         # Should return LoopResult
         assert isinstance(result, LoopResult)
         assert len(result.new_messages) == 3
-        assert result.new_messages[0] == {
-            "role": "developer",
-            "content": "Test developer prompt",
-        }
-        assert result.new_messages[1] == {"role": "user", "content": "Test prompt"}
-        assert result.new_messages[2] == message_entry
+        assert rc(result.new_messages[0]) == (
+            "developer",
+            "Test developer prompt",
+        )
+        assert rc(result.new_messages[1]) == ("user", "Test prompt")
+        assert result.new_messages[2] is message_entry
         assert result.tokens.model == "gpt-4o-mini"
         assert result.tokens.input_tokens == 10
         assert result.tokens.output_tokens == 20
@@ -227,22 +234,26 @@ class TestOpenAIResponsesRunner:
 
         result = self.runner.loop("Test prompt", previous_messages=previous_messages)
 
-        expected_messages = [
-            {"role": "system", "content": "Previous message"},
-            {"role": "user", "content": "Test prompt"},
-            message_entry,
-        ]
+        args, kwargs = self.mock_llm_client.send_request.call_args
+        assert kwargs["tools"] is self.mock_tools
+        assert kwargs["output_format"] is None
+        chat_messages = kwargs["chat_messages"]
 
-        self.mock_llm_client.send_request.assert_called_once_with(
-            chat_messages=expected_messages, tools=self.mock_tools, output_format=None
-        )
+        def rc(x):
+            if isinstance(x, dict):
+                return x.get("role"), x.get("content")
+            return getattr(x, "role", None), getattr(x, "content", None)
+
+        assert len(chat_messages) == 3
+        assert chat_messages[0] == {"role": "system", "content": "Previous message"}
+        assert rc(chat_messages[1]) == ("user", "Test prompt")
+        assert chat_messages[2] is message_entry
 
         # Should return only the new messages (after previous_messages_len)
         assert isinstance(result, LoopResult)
-        assert result.new_messages == [
-            {"role": "user", "content": "Test prompt"},
-            message_entry,
-        ]
+        assert len(result.new_messages) == 2
+        assert rc(result.new_messages[0]) == ("user", "Test prompt")
+        assert result.new_messages[1] is message_entry
 
     def test_loop_with_function_calls(self):
         """Test loop method with function calls"""

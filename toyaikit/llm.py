@@ -3,6 +3,13 @@ from typing import List
 from openai import OpenAI
 from pydantic import BaseModel
 
+from openai.types.chat.chat_completion import ChatCompletion
+from openai.types.chat.parsed_chat_completion import ParsedChatCompletion
+from openai.types.responses.response import Response
+from openai.types.responses.parsed_response import ParsedResponse
+
+
+
 from toyaikit.tools import Tools
 
 
@@ -32,7 +39,7 @@ class OpenAIClient(LLMClient):
         chat_messages: List,
         tools: Tools = None,
         output_format: BaseModel = None,
-    ):
+    ) -> Response | ParsedResponse:
         tools_list = []
 
         if tools is not None:
@@ -103,7 +110,7 @@ class OpenAIChatCompletionsClient(LLMClient):
         chat_messages: List,
         tools: Tools = None,
         output_format: BaseModel = None,
-    ):
+    ) -> ChatCompletion | ParsedChatCompletion:
         tools_list = []
         if tools is not None:
             tools_requests_format = tools.get_tools()

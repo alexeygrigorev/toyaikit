@@ -18,6 +18,24 @@ class CostInfo:
     output_cost: Decimal
     total_cost: Decimal
 
+    @classmethod
+    def create(cls, input_cost: Decimal, output_cost: Decimal) -> "CostInfo":
+        return CostInfo(
+            input_cost=input_cost,
+            output_cost=output_cost,
+            total_cost=(input_cost + output_cost)
+        )
+
+    def plus(self, other: "CostInfo") -> "CostInfo":
+        return CostInfo(
+            input_cost=self.input_cost + other.input_cost,
+            output_cost=self.output_cost + other.output_cost,
+            total_cost=self.total_cost + other.total_cost,
+        )
+
+    def __add__(self, other: "CostInfo") -> "CostInfo":
+        return self.plus(other)
+
 
 class PricingConfig:
     def calculate_cost(self, model: str, input_tokens: int, output_tokens: int):

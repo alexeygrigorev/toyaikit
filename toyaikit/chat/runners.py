@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from typing import Callable, Generic, TypeVar
 
 from pydantic import BaseModel
+from openai.types.responses.easy_input_message import EasyInputMessage
 
 from toyaikit.chat.interface import ChatInterface
 from toyaikit.llm import LLMClient
@@ -125,13 +126,13 @@ class OpenAIResponsesRunner(ChatRunner):
 
         if previous_messages is None or len(previous_messages) == 0:
             chat_messages.append(
-                {"role": "developer", "content": self.developer_prompt}
+                EasyInputMessage(role="developer", content=self.developer_prompt)
             )
         else:
             chat_messages.extend(previous_messages)
             prev_messages_len = len(previous_messages)
 
-        chat_messages.append({"role": "user", "content": prompt})
+        chat_messages.append(EasyInputMessage(role="user", content=prompt))
 
         total_input_tokens = 0
         total_output_tokens = 0
@@ -203,9 +204,8 @@ class OpenAIResponsesRunner(ChatRunner):
         stop_criteria: Callable = None,
     ) -> LoopResult:
         if previous_messages is None or len(previous_messages) == 0:
-            chat_messages = [
-                {"role": "developer", "content": self.developer_prompt},
-            ]
+            dev_message = EasyInputMessage(role="developer", content=self.developer_prompt)
+            chat_messages = [dev_message]
         else:
             chat_messages = []
             chat_messages.extend(previous_messages)

@@ -3,7 +3,7 @@ from decimal import Decimal
 import pytest
 from genai_prices import Usage, calc_price
 
-from toyaikit.pricing import PricingConfig
+from toyaikit.pricing import PricingConfig, CostInfo
 
 
 class TestPricingConfig:
@@ -90,3 +90,28 @@ class TestPricingConfig:
         for provider, models in model_dict.items():
             assert isinstance(models, list)
             assert len(models) > 0
+
+
+    def test_create_cost_info(self):
+        cf = CostInfo.create(
+            input_cost=Decimal('0.01'),
+            output_cost=Decimal('0.02')
+        )
+        assert cf.total_cost == Decimal('0.03')
+
+    def test_cost_info_add(self):
+        c1 = CostInfo.create(
+            input_cost=Decimal('0.01'),
+            output_cost=Decimal('0.10')
+        )
+        c2 = CostInfo.create(
+            input_cost=Decimal('0.02'),
+            output_cost=Decimal('0.20')
+        )
+        c3 = c1 + c2
+
+        assert c3.input_cost == Decimal('0.03')
+        assert c3.output_cost == Decimal('0.30')
+        assert c3.total_cost == c1.total_cost + c2.total_cost
+        
+        
