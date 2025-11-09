@@ -1,0 +1,73 @@
+from pydantic import BaseModel
+
+from toyaikit.tools import Tools
+from toyaikit.llm import OpenAIChatCompletionsClient
+from toyaikit.chat.runners import OpenAIChatCompletionsRunner
+
+def test_responses_api_tools_structured_output():
+    llm_client = OpenAIChatCompletionsClient(model='gpt-4o-mini')
+
+    class Math:
+        def add(self, a: int, b: int) -> int:
+            return a + b + 2
+
+    tools = Tools()
+    tools.add_tools(Math())
+
+    class Result(BaseModel):
+        result: int
+
+    runner = OpenAIChatCompletionsRunner(
+        tools=tools,
+        developer_prompt="use the provided function 'add' when user asks to add numbers",
+        llm_client=llm_client
+    )
+
+    prompt = "how much is 2 + 3"
+    result = runner.loop(prompt=prompt, output_format=Result)
+    messages = result.all_messages
+    # assert the function call 
+
+    output = result.last_message
+    assert output.result == (2 + 3 + 2)
+
+
+def test_responses_api_structured_output():
+    llm_client = OpenAIChatCompletionsClient(model='gpt-4o-mini')
+
+    class Result(BaseModel):
+        result: int
+
+    runner = OpenAIChatCompletionsRunner(
+        developer_prompt="help user with arithmetics",
+        llm_client=llm_client
+    )
+
+    prompt = "how much is 2 + 3"
+    result = runner.loop(prompt=prompt, output_format=Result)
+    messages = result.all_messages
+ 
+
+    output = result.last_message
+    assert output.result == (2 + 3)
+
+
+def test_responses_api_no_developer_prompt():
+    llm_client = OpenAIChatCompletionsClient(model='gpt-4o-mini')
+
+    class Result(BaseModel):
+        result: int
+
+    runner = OpenAIChatCompletionsRunner(
+        llm_client=llm_client
+    )
+
+    prompt = "how much is 2 + 3"
+    result = runner.loop(prompt=prompt, output_format=Result)
+    messages = result.all_messages
+    # assert the function call 
+
+    output = result.last_message
+    assert output.result == (2 + 3)
+
+

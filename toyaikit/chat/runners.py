@@ -6,6 +6,10 @@ from typing import Callable, Generic, TypeVar
 
 from pydantic import BaseModel
 from openai.types.responses.easy_input_message import EasyInputMessage
+from openai.types.chat.chat_completion_system_message_param import ChatCompletionSystemMessageParam
+from openai.types.chat.chat_completion_user_message_param import ChatCompletionUserMessageParam
+from openai.types.chat.chat_completion_function_message_param import ChatCompletionFunctionMessageParam
+
 
 from toyaikit.chat.interface import ChatInterface
 from toyaikit.llm import LLMClient
@@ -63,16 +67,17 @@ class ChatRunner(ABC):
         prompt: str,
         previous_messages: list = None,
         callback: RunnerCallback = None,
+        output_type: BaseModel = None
     ) -> LoopResult:
         """
-        Loop the chat.
+        Do one tool-call loop.
         """
         pass
 
     @abstractmethod
-    def run(self, previous_messages: list = None) -> list:
+    def run(self, previous_messages: list = None) -> LoopResult:
         """
-        Run the chat.
+        Repeast tool call loops until user asks to stop
         """
         pass
 
@@ -143,6 +148,8 @@ class OpenAIResponsesRunner(ChatRunner):
                 tools=self.tools,
                 output_format=output_format,
             )
+            if callback:
+                callback.on_response(response)
 
             if hasattr(response, "usage") and response.usage:
                 total_input_tokens += response.usage.input_tokens
@@ -381,11 +388,11 @@ class OpenAIChatCompletionsRunner(ChatRunner):
         self.displaying_callback = DisplayingRunnerCallback(chat_interface)
 
     def convert_function_output_to_tool_message(self, data):
-        return {
-            "role": "tool",
-            "tool_call_id": data["call_id"],
-            "content": data["output"],
-        }
+        return ChatCompletionFunctionMessageParam(
+            role="tool",
+            tool_call_id=data.call_id,
+            content=data.output,
+        )
 
     def loop(
         self,
@@ -398,12 +405,21 @@ class OpenAIChatCompletionsRunner(ChatRunner):
         prev_messages_len = 0
 
         if previous_messages is None or len(previous_messages) == 0:
-            chat_messages.append({"role": "system", "content": self.developer_prompt})
+            chat_messages.append(
+                ChatCompletionSystemMessageParam(
+                    role="system",
+                    content=self.developer_prompt
+                )
+            )
         else:
             chat_messages.extend(previous_messages)
             prev_messages_len = len(previous_messages)
 
-        chat_messages.append({"role": "user", "content": prompt})
+        user_message = ChatCompletionUserMessageParam(
+            role="user",
+            content=prompt
+        )
+        chat_messages.append(user_message)
 
         total_input_tokens = 0
         total_output_tokens = 0
@@ -413,7 +429,7 @@ class OpenAIChatCompletionsRunner(ChatRunner):
                 chat_messages, self.tools, output_format
             )
 
-            if hasattr(reponse, "usage") and reponse.usage:
+            if reponse.usage:
                 total_input_tokens += reponse.usage.prompt_tokens
                 total_output_tokens += reponse.usage.completion_tokens
 
@@ -454,7 +470,7 @@ class OpenAIChatCompletionsRunner(ChatRunner):
                     callback.on_function_call(function_call, call_result["content"])
 
         pricing_config = PricingConfig()
-        cost_info = pricing_config.calculate_cost(
+        cost = pricing_config.calculate_cost(
             self.llm_client.model, total_input_tokens, total_output_tokens
         )
 
@@ -476,14 +492,24 @@ class OpenAIChatCompletionsRunner(ChatRunner):
             new_messages=new_messages,
             all_messages=chat_messages,
             tokens=token_usage,
-            cost=cost_info,
+            cost=cost,
             last_message=last_message,
         )
 
-    def run(self, stop_criteria: Callable = None) -> LoopResult:
-        chat_messages = [
-            {"role": "system", "content": self.developer_prompt},
-        ]
+    def run(
+        self,
+        previous_messages: list = None,
+        stop_criteria: Callable = None,
+    ) -> LoopResult:
+        if previous_messages is None or len(previous_messages) == 0:
+            dev_message = ChatCompletionSystemMessageParam(
+                role="system",
+                content=self.developer_prompt
+            )
+            chat_messages = [dev_message]
+        else:
+            chat_messages = []
+            chat_messages.extend(previous_messages)
 
         total_input_tokens = 0
         total_output_tokens = 0

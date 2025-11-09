@@ -77,11 +77,13 @@ class Tools:
             arguments = json.loads(tool_call_response.arguments)
             f = self.functions[function_name]
             result = f(**arguments)
+
             return FunctionCallOutput(
                 type="function_call_output",
                 call_id=tool_call_response.call_id,
                 output=json.dumps(result, indent=2),
             )
+
         except Exception as e:
             error_name = e.__class__.__name__
             error_message = str(e)
