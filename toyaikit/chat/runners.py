@@ -6,6 +6,7 @@ from typing import Callable, Generic, TypeVar
 
 from pydantic import BaseModel
 from openai.types.responses.easy_input_message import EasyInputMessage
+from openai.types.responses.response_function_tool_call import ResponseFunctionToolCall
 from openai.types.chat.chat_completion_system_message_param import ChatCompletionSystemMessageParam
 from openai.types.chat.chat_completion_user_message_param import ChatCompletionUserMessageParam
 from openai.types.chat.chat_completion_function_message_param import ChatCompletionFunctionMessageParam
@@ -172,7 +173,7 @@ class OpenAIResponsesRunner(ChatRunner):
                     result = self.tools.function_call(entry)
                     chat_messages.append(result)
                     if callback:
-                        callback.on_function_call(entry, result)
+                        callback.on_function_call(entry, result['output'])
                     has_function_calls = True
 
                 elif entry.type == "message":
@@ -396,18 +397,10 @@ class OpenAIChatCompletionsRunner(ChatRunner):
         self.displaying_callback = DisplayingRunnerCallback(chat_interface)
 
     def convert_function_output_to_tool_message(self, data):
-        # Support both dict-like and attribute access for FunctionCallOutput
-        call_id = getattr(data, "call_id", None)
-        content = getattr(data, "output", None)
-        if call_id is None and isinstance(data, dict):
-            call_id = data.get("call_id")
-        if content is None and isinstance(data, dict):
-            content = data.get("output")
-
         return ChatCompletionFunctionMessageParam(
             role="tool",
-            tool_call_id=call_id,
-            content=content,
+            tool_call_id=data["call_id"],
+            content=data["output"],
         )
 
     def loop(
@@ -477,8 +470,12 @@ class OpenAIChatCompletionsRunner(ChatRunner):
                 break
 
             for call in calls:
-                function_call = dict(call.function.model_dump())
-                function_call["call_id"] = call.id
+                function_call = ResponseFunctionToolCall(
+                    type="function_call",
+                    name=call.function.name,
+                    arguments=call.function.arguments,
+                    call_id=call.id,
+                )
 
                 call_result = self.tools.function_call(function_call)
                 call_result = self.convert_function_output_to_tool_message(call_result)

@@ -1,5 +1,5 @@
 import json
-from types import SimpleNamespace
+from types import SimpleNamespace as D
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
@@ -103,8 +103,9 @@ class TestDisplayingRunnerCallback:
 
     def test_on_function_call(self):
         """Test on_function_call delegates to chat interface"""
-        function_call = SimpleNamespace(
-            name="test_func", arguments='{"param": "value"}'
+        function_call = D(
+            name="test_func",
+            arguments='{"param": "value"}',
         )
         result = "test result"
 
@@ -164,13 +165,19 @@ class TestOpenAIResponsesRunner:
     def test_loop_with_no_previous_messages(self):
         """Test loop method with no previous messages"""
         # Mock response with message (no function calls)
-        message_entry = SimpleNamespace(
-            type="message", content=[SimpleNamespace(text="Hello")]
+        message_entry = D(
+            type="message",
+            content=[D(text="Hello")],
         )
-        mock_usage = SimpleNamespace(
-            model="gpt-4o-mini", input_tokens=10, output_tokens=20
+        mock_usage = D(
+            model="gpt-4o-mini",
+            input_tokens=10,
+            output_tokens=20,
         )
-        mock_response = SimpleNamespace(output=[message_entry], usage=mock_usage)
+        mock_response = D(
+            output=[message_entry],
+            usage=mock_usage,
+        )
         self.mock_llm_client.send_request.return_value = mock_response
         self.mock_llm_client.model = "gpt-4o-mini"
 
@@ -214,11 +221,18 @@ class TestOpenAIResponsesRunner:
         """Test loop method with previous messages"""
         previous_messages = [{"role": "system", "content": "Previous message"}]
 
-        message_entry = SimpleNamespace(
-            type="message", content=[SimpleNamespace(text="Hello")]
+        message_entry = D(
+            type="message",
+            content=[D(text="Hello")],
         )
-        mock_usage = SimpleNamespace(input_tokens=10, output_tokens=20)
-        mock_response = SimpleNamespace(output=[message_entry], usage=mock_usage)
+        mock_usage = D(
+            input_tokens=10,
+            output_tokens=20,
+        )
+        mock_response = D(
+            output=[message_entry],
+            usage=mock_usage,
+        )
         self.mock_llm_client.send_request.return_value = mock_response
         self.mock_llm_client.model = "gpt-4o-mini"
 
@@ -247,23 +261,32 @@ class TestOpenAIResponsesRunner:
 
     def test_loop_with_function_calls(self):
         """Test loop method with function calls"""
-        # Mock function call entry
-        function_call = SimpleNamespace(
-            type="function_call", name="test_func", arguments="{}"
+        function_call = D(
+            type="function_call",
+            name="test_func",
+            arguments="{}",
         )
-        function_result = {"role": "function", "content": "Function result"}
-        self.mock_tools.function_call.return_value = function_result
+        function_call_output = dict(
+            type="function_call_output",
+            role="function",
+            output="Function result",
+        )
+        self.mock_tools.function_call.return_value = function_call_output
 
         # Mock final message after function call
-        message_entry = SimpleNamespace(
-            type="message", content=[SimpleNamespace(text="Final response")]
+        message_entry = D(
+            type="message",
+            content=[D(text="Final response")],
         )
 
-        mock_usage = SimpleNamespace(input_tokens=10, output_tokens=20)
-        # First response has function call, second has final message
+        mock_usage = D(
+            input_tokens=10,
+            output_tokens=20,
+        )
+
         self.mock_llm_client.send_request.side_effect = [
-            SimpleNamespace(output=[function_call], usage=mock_usage),
-            SimpleNamespace(output=[message_entry], usage=mock_usage),
+            D(output=[function_call], usage=mock_usage),
+            D(output=[message_entry], usage=mock_usage),
         ]
         self.mock_llm_client.model = "gpt-4o-mini"
 
@@ -275,7 +298,7 @@ class TestOpenAIResponsesRunner:
 
         # Should call callback
         mock_callback.on_function_call.assert_called_once_with(
-            function_call, function_result
+            function_call, function_call_output["output"]
         )
 
         # Should make two LLM calls
@@ -283,11 +306,18 @@ class TestOpenAIResponsesRunner:
 
     def test_loop_with_message_callback(self):
         """Test loop method calls message callback"""
-        message_entry = SimpleNamespace(
-            type="message", content=[SimpleNamespace(text="Hello")]
+        message_entry = D(
+            type="message",
+            content=[D(text="Hello")],
         )
-        mock_usage = SimpleNamespace(input_tokens=10, output_tokens=20)
-        mock_response = SimpleNamespace(output=[message_entry], usage=mock_usage)
+        mock_usage = D(
+            input_tokens=10,
+            output_tokens=20,
+        )
+        mock_response = D(
+            output=[message_entry],
+            usage=mock_usage,
+        )
         self.mock_llm_client.send_request.return_value = mock_response
         self.mock_llm_client.model = "gpt-4o-mini"
 
@@ -761,62 +791,73 @@ class TestOpenAIChatCompletionsRunner:
 
     def test_loop_with_tool_calls(self):
         """Test loop method with tool calls"""
-        # Mock tool call
-        mock_function = Mock()
-        mock_function.model_dump.return_value = {
-            "name": "test_func",
-            "arguments": '{"param": "value"}',
-        }
+        function = D(
+            function=D(
+                name="test_func",
+                arguments='{"param": "value"}',
+            ),
+            id="call_123",
+        )
 
-        mock_tool_call = Mock()
-        mock_tool_call.id = "call_123"
-        mock_tool_call.function = mock_function
+        choice = D(
+            message=D(
+                content="",
+                tool_calls=[function],
+            ),
+        )
 
-        # Mock response with tool calls
-        mock_message = Mock()
-        mock_message.content = ""
-        mock_message.tool_calls = [mock_tool_call]
+        final_choice = D(
+            message=D(
+                content="Final response",
+                tool_calls=None,
+            ),
+        )
 
-        mock_choice = Mock()
-        mock_choice.message = mock_message
-
-        # Mock final response after tool call
-        mock_final_message = Mock()
-        mock_final_message.content = "Final response"
-        mock_final_message.tool_calls = None
-
-        mock_final_choice = Mock()
-        mock_final_choice.message = mock_final_message
-
-        mock_usage = Mock()
-        mock_usage.prompt_tokens = 10
-        mock_usage.completion_tokens = 20
+        usage = D(
+            prompt_tokens=10,
+            completion_tokens=20,
+        )
 
         self.mock_llm_client.send_request.side_effect = [
-            Mock(choices=[mock_choice], usage=mock_usage),
-            Mock(choices=[mock_final_choice], usage=mock_usage),
+            D(choices=[choice], usage=usage),
+            D(choices=[final_choice], usage=usage),
         ]
         self.mock_llm_client.model = "gpt-4o-mini"
 
-        # Mock tool function call result
-        tool_result = {"call_id": "call_123", "output": "Tool output"}
-        self.mock_tools.function_call.return_value = tool_result
+        function_call_output = {
+            "type": "function_call_output",
+            "call_id": "call_123",
+            "output": "Tool output",
+        }
+        self.mock_tools.function_call.return_value = function_call_output
 
         mock_callback = Mock()
         self.runner.loop("Test prompt", callback=mock_callback)
 
         # Should call tools.function_call
-        expected_function_call = {
-            "name": "test_func",
-            "arguments": '{"param": "value"}',
-            "call_id": "call_123",
-        }
-        self.mock_tools.function_call.assert_called_once_with(expected_function_call)
+        expected_function_call = D(
+            name="test_func",
+            arguments='{"param": "value"}',
+            call_id="call_123",
+        )
+
+        actual_call_args = self.mock_tools.function_call.call_args
+        assert self.mock_tools.function_call.call_count == 1
+        
+        actual_function_call = actual_call_args[0][0]
+        assert actual_function_call.name == expected_function_call.name
+        assert actual_function_call.arguments == expected_function_call.arguments
+        assert actual_function_call.call_id == expected_function_call.call_id
 
         # Should call function call callback
-        mock_callback.on_function_call.assert_called_once_with(
-            expected_function_call, "Tool output"
-        )
+        callback_args = mock_callback.on_function_call.call_args
+        assert mock_callback.on_function_call.call_count == 1        
+        
+        callback_function_call = callback_args[0][0]
+        assert callback_function_call.name == expected_function_call.name
+        assert callback_function_call.arguments == expected_function_call.arguments
+        assert callback_function_call.call_id == expected_function_call.call_id
+
 
     def test_run_interactive_chat(self):
         """Test run method for interactive chat"""
@@ -825,8 +866,8 @@ class TestOpenAIChatCompletionsRunner:
 
         with patch.object(self.runner, "loop") as mock_loop:
             mock_loop.return_value = LoopResult(
-                new_messages=[{"role": "assistant", "content": "Hi"}],
-                all_messages=[{"role": "assistant", "content": "Hi"}],
+                new_messages=[D(role="assistant", content="Hi")],
+                all_messages=[D(role="assistant", content="Hi")],
                 tokens=TokenUsage(model="gpt-4o", input_tokens=10, output_tokens=20),
                 cost=CostInfo(input_cost=0.001, output_cost=0.002, total_cost=0.003),
                 last_message="Hi",
