@@ -5,7 +5,7 @@ from toyaikit.tools import Tools
 from toyaikit.llm import OpenAIClient
 from toyaikit.chat.runners import OpenAIResponsesRunner
 
-from .utils import TestCallback
+from .utils import _TestCallback
 
 
 def test_responses_api_tools_structured_output():
@@ -29,7 +29,7 @@ def test_responses_api_tools_structured_output():
 
     prompt = "how much is 2 + 3"
 
-    test_callback = TestCallback()
+    test_callback = _TestCallback()
 
     result = runner.loop(
         prompt=prompt,

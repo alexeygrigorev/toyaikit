@@ -5,7 +5,7 @@ from toyaikit.tools import Tools
 from toyaikit.llm import OpenAIChatCompletionsClient
 from toyaikit.chat.runners import OpenAIChatCompletionsRunner
 
-from .utils import TestCallback
+from .utils import _TestCallback
 
 def test_responses_api_tools_structured_output():
     llm_client = OpenAIChatCompletionsClient(model='gpt-4o-mini')
@@ -26,7 +26,7 @@ def test_responses_api_tools_structured_output():
         llm_client=llm_client
     )
 
-    test_callback = TestCallback()
+    test_callback = _TestCallback()
 
     prompt = "how much is 2 + 3"
     result = runner.loop(

@@ -4,7 +4,7 @@ from typing import Any, List, Tuple
 from toyaikit.chat.runners import RunnerCallback
 
 
-class TestCallback(RunnerCallback):
+class _TestCallback(RunnerCallback):
     def __init__(self):
         self.function_calls = []
         self.messages = []
