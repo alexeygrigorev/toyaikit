@@ -186,18 +186,6 @@ class TestOpenAIChatCompletionsClient:
 
         assert result == expected
 
-    def test_convert_single_tool_not_function(self):
-        """Test convert_single_tool raises error for non-function tool"""
-        mock_client = Mock(spec=OpenAI)
-        client = OpenAIChatCompletionsClient(client=mock_client)
-
-        tool = {"type": "other", "name": "not_a_function"}
-
-        with pytest.raises(
-            TypeError, match="exceptions must derive from BaseException"
-        ):
-            client.convert_single_tool(tool)
-
     def test_convert_api_tools_to_chat_functions(self):
         """Test convert_api_tools_to_chat_functions with multiple tools"""
         mock_client = Mock(spec=OpenAI)
@@ -327,3 +315,53 @@ class TestOpenAIChatCompletionsClient:
             tools=[],
             response_format=TestOutputFormat,
         )
+
+    def test_convert_api_tools_to_chat_functions_strict(self):
+        """When strict=True, tools include strict flag on function."""
+        mock_client = Mock(spec=OpenAI)
+        client = OpenAIChatCompletionsClient(client=mock_client)
+
+        api_tools = [
+            {
+                "type": "function",
+                "name": "calc",
+                "description": "Calculate",
+                "parameters": {"type": "object", "properties": {}},
+            }
+        ]
+
+        result = client.convert_api_tools_to_chat_functions(api_tools, strict=True)
+        assert result[0]["function"]["strict"] is True
+
+    def test_send_request_with_output_format_adds_strict_on_tools(self):
+        """parse() should receive tools with strict=True when tools are provided."""
+        mock_client = Mock(spec=OpenAI)
+        mock_response = Mock()
+        mock_client.chat.completions.parse.return_value = mock_response
+
+        # Create a mock BaseModel for output format
+        class TestOutputFormat(BaseModel):
+            field: str
+
+        # One API tool returned by Tools.get_tools()
+        tools = Mock(spec=Tools)
+        api_tools = [
+            {
+                "type": "function",
+                "name": "calc",
+                "description": "Calculate",
+                "parameters": {"type": "object", "properties": {}},
+            }
+        ]
+        tools.get_tools.return_value = api_tools
+
+        client = OpenAIChatCompletionsClient(client=mock_client)
+        chat_messages = [{"role": "user", "content": "Hello"}]
+
+        _ = client.send_request(chat_messages, tools=tools, output_format=TestOutputFormat)
+
+        # Capture call and verify strict flag is present on tool
+        _, kwargs = mock_client.chat.completions.parse.call_args
+        sent_tools = kwargs["tools"]
+        assert isinstance(sent_tools, list) and len(sent_tools) == 1
+        assert sent_tools[0]["function"]["strict"] is True

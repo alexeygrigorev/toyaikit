@@ -45,11 +45,13 @@ dev = [
     "build",
     "pytest",
     "pytest-cov",
+    "pytest-xdist",
     "coverage[toml]",
     "twine",
     "openai-agents>=0.3.0",
     "pytest-asyncio>=1.2.0",
     "ruff",
+    "python-dotenv>=1.1.1",
 ]
 
 [project.urls]
@@ -111,5 +113,3 @@ quote-style = "double"
 indent-style = "space"
 skip-magic-trailing-comma = false
 line-ending = "auto"
-
-

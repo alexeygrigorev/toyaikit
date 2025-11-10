@@ -1,8 +1,10 @@
 from pydantic import BaseModel
+from tests_integration.utils import find_function_calls_chat_completions
 
 from toyaikit.tools import Tools
 from toyaikit.llm import OpenAIChatCompletionsClient
 from toyaikit.chat.runners import OpenAIChatCompletionsRunner
+
 
 def test_responses_api_tools_structured_output():
     llm_client = OpenAIChatCompletionsClient(model='gpt-4o-mini')
@@ -26,7 +28,8 @@ def test_responses_api_tools_structured_output():
     prompt = "how much is 2 + 3"
     result = runner.loop(prompt=prompt, output_format=Result)
     messages = result.all_messages
-    # assert the function call 
+    calls = find_function_calls_chat_completions(messages)
+    assert any(name == "add" for name, _ in calls), "Expected 'add' tool call to occur"
 
     output = result.last_message
     assert output.result == (2 + 3 + 2)
@@ -45,8 +48,7 @@ def test_responses_api_structured_output():
 
     prompt = "how much is 2 + 3"
     result = runner.loop(prompt=prompt, output_format=Result)
-    messages = result.all_messages
- 
+    # no tool call assert here (no tools provided)
 
     output = result.last_message
     assert output.result == (2 + 3)
@@ -64,8 +66,7 @@ def test_responses_api_no_developer_prompt():
 
     prompt = "how much is 2 + 3"
     result = runner.loop(prompt=prompt, output_format=Result)
-    messages = result.all_messages
-    # assert the function call 
+    # no tool call assert here (no tools provided)
 
     output = result.last_message
     assert output.result == (2 + 3)

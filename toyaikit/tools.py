@@ -2,8 +2,8 @@ import inspect
 import json
 from typing import get_type_hints
 
-
 from openai.types.responses.response_input_param import FunctionCallOutput
+
 
 class Tools:
     def __init__(self):
@@ -73,14 +73,34 @@ class Tools:
             dict: The result of the function call or error details if the call fails.
         """
         try:
-            function_name = tool_call_response.name
-            arguments = json.loads(tool_call_response.arguments)
+            # Support both OpenAI SDK objects with attributes and plain dicts
+            if isinstance(tool_call_response, dict):
+                function_name = tool_call_response.get("name")
+                arguments_raw = tool_call_response.get("arguments", "{}")
+                call_id = tool_call_response.get("call_id")
+            else:
+                function_name = getattr(tool_call_response, "name", None)
+                arguments_raw = getattr(tool_call_response, "arguments", "{}")
+                call_id = getattr(tool_call_response, "call_id", None)
+
+            # Ensure we got a function
+            if function_name not in self.functions:
+                raise KeyError(f"Unknown function: {function_name}")
+
+            # Arguments come as JSON string from the SDK; accept dict as well
+            if isinstance(arguments_raw, str):
+                arguments = json.loads(arguments_raw or "{}")
+            elif isinstance(arguments_raw, dict):
+                arguments = arguments_raw
+            else:
+                arguments = json.loads(str(arguments_raw))
+
             f = self.functions[function_name]
             result = f(**arguments)
 
             return FunctionCallOutput(
                 type="function_call_output",
-                call_id=tool_call_response.call_id,
+                call_id=call_id,
                 output=json.dumps(result, indent=2),
             )
 
@@ -88,9 +108,14 @@ class Tools:
             error_name = e.__class__.__name__
             error_message = str(e)
             error = {"error": f"{error_name}: {error_message}"}
+            call_id = None
+            if isinstance(tool_call_response, dict):
+                call_id = tool_call_response.get("call_id")
+            else:
+                call_id = getattr(tool_call_response, "call_id", None)
             return FunctionCallOutput(
                 type="function_call_output",
-                call_id=tool_call_response.call_id,
+                call_id=call_id,
                 output=json.dumps(error, indent=2),
             )
 

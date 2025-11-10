@@ -130,16 +130,6 @@ class TestDisplayingRunnerCallback:
 
         self.mock_interface.display_reasoning.assert_called_once_with(reasoning)
 
-    def test_on_response(self):
-        """Test on_response creates log message and displays it"""
-        response = SimpleNamespace(output=["item1", "item2", "item3"])
-
-        self.callback.on_response(response)
-
-        expected_log = f"response with 3, {response}"
-        self.mock_interface.display.assert_called_once_with(expected_log)
-
-
 class TestOpenAIResponsesRunner:
     def setup_method(self):
         """Set up test fixtures"""

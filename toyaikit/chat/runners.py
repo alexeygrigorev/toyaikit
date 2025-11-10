@@ -88,7 +88,9 @@ class DisplayingRunnerCallback(RunnerCallback):
 
     def on_function_call(self, function_call, result):
         self.chat_interface.display_function_call(
-            function_call.name, function_call.arguments, result
+            function_call.name,
+            function_call.arguments,
+            result,
         )
 
     def on_message(self, message):
@@ -98,9 +100,7 @@ class DisplayingRunnerCallback(RunnerCallback):
         self.chat_interface.display_reasoning(reasoning)
 
     def on_response(self, response):
-        log = f"response with {len(response.output)}, {response}"
-        self.chat_interface.display(log)
-
+        self.chat_interface.display(f"-> Response received")
 
 class OpenAIResponsesRunner(ChatRunner):
     """Runner for OpenAI responses API."""
@@ -131,13 +131,21 @@ class OpenAIResponsesRunner(ChatRunner):
 
         if previous_messages is None or len(previous_messages) == 0:
             chat_messages.append(
-                EasyInputMessage(role="developer", content=self.developer_prompt)
+                EasyInputMessage(
+                    role="developer",
+                    content=self.developer_prompt,
+                )
             )
         else:
             chat_messages.extend(previous_messages)
             prev_messages_len = len(previous_messages)
 
-        chat_messages.append(EasyInputMessage(role="user", content=prompt))
+        chat_messages.append(
+            EasyInputMessage(
+                role="user",
+                content=prompt,
+            )
+        )
 
         total_input_tokens = 0
         total_output_tokens = 0
@@ -388,10 +396,18 @@ class OpenAIChatCompletionsRunner(ChatRunner):
         self.displaying_callback = DisplayingRunnerCallback(chat_interface)
 
     def convert_function_output_to_tool_message(self, data):
+        # Support both dict-like and attribute access for FunctionCallOutput
+        call_id = getattr(data, "call_id", None)
+        content = getattr(data, "output", None)
+        if call_id is None and isinstance(data, dict):
+            call_id = data.get("call_id")
+        if content is None and isinstance(data, dict):
+            content = data.get("output")
+
         return ChatCompletionFunctionMessageParam(
             role="tool",
-            tool_call_id=data.call_id,
-            content=data.output,
+            tool_call_id=call_id,
+            content=content,
         )
 
     def loop(
@@ -428,6 +444,9 @@ class OpenAIChatCompletionsRunner(ChatRunner):
             reponse = self.llm_client.send_request(
                 chat_messages, self.tools, output_format
             )
+
+            if callback:
+                callback.on_response(reponse)
 
             if reponse.usage:
                 total_input_tokens += reponse.usage.prompt_tokens
@@ -467,7 +486,10 @@ class OpenAIChatCompletionsRunner(ChatRunner):
                 chat_messages.append(call_result)
 
                 if callback:
-                    callback.on_function_call(function_call, call_result["content"])
+                    content_val = getattr(call_result, "content", None)
+                    if content_val is None and isinstance(call_result, dict):
+                        content_val = call_result.get("content")
+                    callback.on_function_call(function_call, content_val)
 
         pricing_config = PricingConfig()
         cost = pricing_config.calculate_cost(

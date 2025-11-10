@@ -66,6 +66,7 @@ class IPythonChatInterface:
     def display_function_call(
         self, function_name: str, arguments: str, result: str
     ) -> None:
+        excaped_result = result.replace("<", "&lt;").replace(">", "&gt;")
         call_html = f"""
             <details>
             <summary>Function call: <tt>{function_name}({shorten(arguments)})</tt></summary>
@@ -75,7 +76,7 @@ class IPythonChatInterface:
             </div>
             <div>
                 <b>Output</b>
-                <pre>{result}</pre>
+                <pre>{excaped_result}</pre>
             </div>
 
             </details>

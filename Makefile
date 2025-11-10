@@ -1,7 +1,11 @@
-.PHONY: test setup shell coverage format
+.PHONY: test test-integration setup shell coverage format
 
 test:
 	uv run pytest
+
+# Run only integration tests in tests_integration/ in parallel
+test-integration:
+	uv run pytest -n auto tests_integration
 
 coverage:
 	uv run pytest --cov=toyaikit --cov-report=term-missing --cov-report=html

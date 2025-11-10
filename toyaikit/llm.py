@@ -77,14 +77,11 @@ class OpenAIChatCompletionsClient(LLMClient):
 
         self.extra_kwargs = extra_kwargs or {}
 
-    def convert_single_tool(self, tool):
+    def convert_single_tool(self, tool, strict: bool = False):
         """
         Convert a single OpenAI tool/function API dict to Chat Completions function format.
         """
-        if tool["type"] != "function":
-            raise "it's not a function"
-
-        return {
+        fn = {
             "type": "function",
             "function": {
                 "name": tool["name"],
@@ -92,15 +89,18 @@ class OpenAIChatCompletionsClient(LLMClient):
                 "parameters": tool["parameters"],
             },
         }
+        if strict:
+            fn["function"]["strict"] = True
+        return fn
 
-    def convert_api_tools_to_chat_functions(self, api_tools):
+    def convert_api_tools_to_chat_functions(self, api_tools, strict: bool = False):
         """
         Convert a list of OpenAI API tools to Chat Completions function format.
         """
         chat_functions = []
 
         for tool in api_tools:
-            converted = self.convert_single_tool(tool)
+            converted = self.convert_single_tool(tool, strict=strict)
             chat_functions.append(converted)
 
         return chat_functions
@@ -112,9 +112,15 @@ class OpenAIChatCompletionsClient(LLMClient):
         output_format: BaseModel = None,
     ) -> ChatCompletion | ParsedChatCompletion:
         tools_list = []
+
         if tools is not None:
             tools_requests_format = tools.get_tools()
-            tools_list = self.convert_api_tools_to_chat_functions(tools_requests_format)
+
+            strict = output_format is not None
+            tools_list = self.convert_api_tools_to_chat_functions(
+                tools_requests_format,
+                strict=strict,
+            )
 
         args = dict(
             model=self.model,
