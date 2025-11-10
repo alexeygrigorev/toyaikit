@@ -3,7 +3,9 @@ from tests_integration.utils import find_function_calls_responses
 
 from toyaikit.tools import Tools
 from toyaikit.llm import OpenAIClient
-from toyaikit.chat.runners import OpenAIResponsesRunner, DisplayingRunnerCallback
+from toyaikit.chat.runners import OpenAIResponsesRunner
+
+from .utils import TestCallback
 
 
 def test_responses_api_tools_structured_output():
@@ -26,10 +28,22 @@ def test_responses_api_tools_structured_output():
     )
 
     prompt = "how much is 2 + 3"
-    result = runner.loop(prompt=prompt, output_format=Result)
+
+    test_callback = TestCallback()
+
+    result = runner.loop(
+        prompt=prompt,
+        callback=test_callback,
+        output_format=Result,
+    )
+    
     messages = result.all_messages
     calls = find_function_calls_responses(messages)
     assert any(name == "add" for name, _ in calls), "Expected 'add' tool call to occur"
+
+    assert len(test_callback.messages) == 1  
+    assert len(test_callback.function_calls) == 1
+    assert len(test_callback.responses) == 2
 
     output = result.last_message
     assert output.result == (2 + 3 + 2)
@@ -70,5 +84,3 @@ def test_responses_api_no_developer_prompt():
 
     output = result.last_message
     assert output.result == (2 + 3)
-
-

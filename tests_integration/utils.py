@@ -1,6 +1,28 @@
 import json
 from typing import Any, List, Tuple
 
+from toyaikit.chat.runners import RunnerCallback
+
+
+class TestCallback(RunnerCallback):
+    def __init__(self):
+        self.function_calls = []
+        self.messages = []
+        self.reasonings = []
+        self.responses = []
+
+    def on_function_call(self, function_call: dict, result: str):
+        self.function_calls.append((function_call, result))
+
+    def on_message(self, message: dict):
+        self.messages.append(message)
+
+    def on_reasoning(self, reasoning: str):
+        self.reasonings.append(reasoning)
+
+    def on_response(self, response):
+        self.responses.append(response)
+
 
 def _parse_args(arguments: str | dict) -> dict:
     # Expect the SDK to return a JSON string; allow dict for convenience

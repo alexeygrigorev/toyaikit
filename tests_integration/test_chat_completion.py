@@ -5,6 +5,7 @@ from toyaikit.tools import Tools
 from toyaikit.llm import OpenAIChatCompletionsClient
 from toyaikit.chat.runners import OpenAIChatCompletionsRunner
 
+from .utils import TestCallback
 
 def test_responses_api_tools_structured_output():
     llm_client = OpenAIChatCompletionsClient(model='gpt-4o-mini')
@@ -25,11 +26,22 @@ def test_responses_api_tools_structured_output():
         llm_client=llm_client
     )
 
+    test_callback = TestCallback()
+
     prompt = "how much is 2 + 3"
-    result = runner.loop(prompt=prompt, output_format=Result)
+    result = runner.loop(
+        prompt=prompt,
+        callback=test_callback,
+        output_format=Result,
+    )
+
     messages = result.all_messages
     calls = find_function_calls_chat_completions(messages)
     assert any(name == "add" for name, _ in calls), "Expected 'add' tool call to occur"
+
+    assert len(test_callback.messages) == 1  
+    assert len(test_callback.function_calls) == 1
+    assert len(test_callback.responses) == 2
 
     output = result.last_message
     assert output.result == (2 + 3 + 2)
