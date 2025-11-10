@@ -10,8 +10,6 @@ on:
 
 jobs:
   integration-tests:
-    # Only run if an API key is available
-    if: ${{ secrets.OPENAI_API_KEY != '' }}
     runs-on: ubuntu-latest
 
     steps:
