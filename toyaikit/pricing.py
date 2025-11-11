@@ -54,17 +54,26 @@ class PricingConfig:
             token_usage = Usage(input_tokens=input_tokens, output_tokens=output_tokens)
             price_data = calc_price(token_usage, provider_id=provider, model_ref=model)
 
+            return CostInfo(
+                input_cost=price_data.input_price,
+                output_cost=price_data.output_price,
+                total_cost=price_data.total_price,
+            )
+
         except LookupError as le:
+            # Try fallback pricing for models not in genai_prices
+            model_key = model.lower()
+            if model_key in FALLBACK_PRICING:
+                pricing = FALLBACK_PRICING[model_key]
+                # Prices are per 1M tokens, so divide by 1M
+                input_cost = (pricing["input"] * input_tokens) / Decimal("1000000")
+                output_cost = (pricing["output"] * output_tokens) / Decimal("1000000")
+                return CostInfo.create(input_cost=input_cost, output_cost=output_cost)
+            
             raise LookupError(
                 "Please check model name. Use list_all_models function to see list of supported models.",
                 le,
             )
-
-        return CostInfo(
-            input_cost=price_data.input_price,
-            output_cost=price_data.output_price,
-            total_cost=price_data.total_price,
-        )
 
     def all_available_models(self):
         """Lists all available models which has price data.
@@ -81,3 +90,15 @@ class PricingConfig:
                 model_dict[provider.id].append(model_name)
 
         return model_dict
+
+
+# Fallback pricing for models not in genai_prices (per 1M tokens)
+FALLBACK_PRICING = {
+    # Z.ai
+    "glm-4.6": {"input": Decimal("0.6"), "output": Decimal("2.2")},
+    "glm-4.5": {"input": Decimal("0.6"), "output": Decimal("2.2")},
+    "glm-4.5v": {"input": Decimal("0.6"), "output": Decimal("1.8")},
+    "glm-4.5-x": {"input": Decimal("2.2"), "output": Decimal("8.9")},
+    "glm-4.5-air": {"input": Decimal("0.2"), "output": Decimal("4.5")},
+}
+

@@ -113,5 +113,35 @@ class TestPricingConfig:
         assert c3.input_cost == Decimal('0.03')
         assert c3.output_cost == Decimal('0.30')
         assert c3.total_cost == c1.total_cost + c2.total_cost
+
+    def test_calculate_cost_glm_fallback(self):
+        """Test fallback pricing for GLM models."""
+        input_tokens = 1000000  # 1M tokens
+        output_tokens = 500000  # 0.5M tokens
+        model = "glm-4.5"
+
+        pricing_config_result = self.pricing_config.calculate_cost(
+            model=model, input_tokens=input_tokens, output_tokens=output_tokens
+        )
+
+        # GLM-4.5: $0.6 per 1M input tokens, $2.2 per 1M output tokens
+        assert pricing_config_result.input_cost == Decimal("0.6")
+        assert pricing_config_result.output_cost == Decimal("1.1")  # 0.5M * $2.2
+        assert pricing_config_result.total_cost == Decimal("1.7")
+
+    def test_calculate_cost_glm_air_fallback(self):
+        """Test fallback pricing for GLM-4.5-Air model."""
+        input_tokens = 2000000  # 2M tokens
+        output_tokens = 1000000  # 1M tokens
+        model = "glm-4.5-air"
+
+        pricing_config_result = self.pricing_config.calculate_cost(
+            model=model, input_tokens=input_tokens, output_tokens=output_tokens
+        )
+
+        # GLM-4.5-Air: $0.2 per 1M input tokens, $4.5 per 1M output tokens
+        assert pricing_config_result.input_cost == Decimal("0.4")  # 2M * $0.2
+        assert pricing_config_result.output_cost == Decimal("4.5")  # 1M * $4.5
+        assert pricing_config_result.total_cost == Decimal("4.9")
         
         
