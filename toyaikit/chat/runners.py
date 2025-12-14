@@ -351,11 +351,11 @@ class PydanticAIRunner(ChatRunner):
                 break
 
             result = await self.agent.run(
-                user_prompt=user_input, message_history=message_history
+                user_prompt=user_input,
+                message_history=message_history
             )
 
             messages = result.new_messages()
-
             tool_calls = {}
 
             for m in messages:
@@ -365,19 +365,28 @@ class PydanticAIRunner(ChatRunner):
                     if kind == "text":
                         self.chat_interface.display_response(part.content)
 
-                    if kind == "tool-call":
-                        call_id = part.tool_call_id
-                        tool_calls[call_id] = part
+                    elif kind == "tool-call":
+                        tool_calls[part.tool_call_id] = part
 
-                    if kind == "tool-return":
-                        call_id = part.tool_call_id
-                        call = tool_calls[call_id]
-                        result = part.content
+                    elif kind == "tool-return":
+                        call = tool_calls.get(part.tool_call_id)
+
+                        raw_result = part.content
+                        if raw_result is None:
+                            result_str = ""
+                        elif isinstance(raw_result, str):
+                            result_str = raw_result
+                        else:
+                            result_str = json.dumps(raw_result, indent=2, default=str)
+
                         self.chat_interface.display_function_call(
-                            call.tool_name, json.dumps(call.args), result
+                            call.tool_name,
+                            json.dumps(call.args),
+                            result_str
                         )
 
             message_history.extend(messages)
+
 
 
 class OpenAIChatCompletionsRunner(ChatRunner):
