@@ -879,8 +879,8 @@ class TestOpenAIChatCompletionsRunner:
             # Should call input twice
             assert self.mock_interface.input.call_count == 2
 
-            # Should display "Chat ended"
-            self.mock_interface.display.assert_called_with("Chat ended")
+            # Should display "Chat ended."
+            self.mock_interface.display.assert_called_with("Chat ended.")
 
     def test_loop_with_previous_messages_empty_case(self):
         """Test loop method with empty previous messages list"""

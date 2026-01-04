@@ -4,15 +4,18 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Callable, Generic, TypeVar
 
-from pydantic import BaseModel
+from openai.types.chat.chat_completion_function_message_param import (
+    ChatCompletionFunctionMessageParam,
+)
+from openai.types.chat.chat_completion_system_message_param import (
+    ChatCompletionSystemMessageParam,
+)
+from openai.types.chat.chat_completion_user_message_param import (
+    ChatCompletionUserMessageParam,
+)
 from openai.types.responses.easy_input_message import EasyInputMessage
 from openai.types.responses.response_function_tool_call import ResponseFunctionToolCall
-from openai.types.chat.chat_completion_system_message_param import ChatCompletionSystemMessageParam
-from openai.types.chat.chat_completion_user_message_param import ChatCompletionUserMessageParam
-from openai.types.chat.chat_completion_function_message_param import ChatCompletionFunctionMessageParam
-
-from anthropic.types import Message as AnthropicMessage
-
+from pydantic import BaseModel
 
 from toyaikit.chat.interface import ChatInterface
 from toyaikit.llm import LLMClient
@@ -22,6 +25,13 @@ from toyaikit.tools import Tools
 # T must be either a str or a (subclass)
 # instance of pydantic BaseModel
 T = TypeVar("T", str, BaseModel)
+
+
+def _get_tool_call_output(call_result) -> str:
+    """Extract output from tool call result, handling both dict and object types."""
+    if isinstance(call_result, dict):
+        return call_result.get("output", "")
+    return getattr(call_result, "output", "")
 
 
 @dataclass
@@ -103,10 +113,15 @@ class DisplayingRunnerCallback(RunnerCallback):
         self.chat_interface.display_reasoning(reasoning)
 
     def on_response(self, response):
-        self.chat_interface.display(f"-> Response received")
+        self.chat_interface.display("-> Response received")
 
-class OpenAIResponsesRunner(ChatRunner):
-    """Runner for OpenAI responses API."""
+
+class BaseToolUsingRunner(ChatRunner):
+    """Base class for runners that use tools and LLM clients.
+
+    Provides common initialization and run() method implementation.
+    Subclasses only need to implement the loop() method.
+    """
 
     def __init__(
         self,
@@ -117,10 +132,89 @@ class OpenAIResponsesRunner(ChatRunner):
     ):
         self.tools = tools
         self.developer_prompt = developer_prompt
-        self.llm_client = llm_client
         self.chat_interface = chat_interface
+        self.llm_client = llm_client
         self.displaying_callback = DisplayingRunnerCallback(chat_interface)
         self.pricing_config = PricingConfig()
+
+    @abstractmethod
+    def loop(
+        self,
+        prompt: str,
+        previous_messages: list = None,
+        callback: RunnerCallback = None,
+        output_format: BaseModel = None,
+    ) -> LoopResult:
+        """Execute one tool-call loop. Must be implemented by subclasses."""
+        pass
+
+    def run(
+        self,
+        previous_messages: list = None,
+        stop_criteria: Callable = None,
+    ) -> LoopResult:
+        """Repeat tool-call loops until user asks to stop."""
+        chat_messages = self._initialize_messages(previous_messages)
+
+        total_input_tokens = 0
+        total_output_tokens = 0
+        last_message_text = ""
+
+        while True:
+            user_input = self.chat_interface.input()
+            if user_input.lower() == "stop":
+                self.chat_interface.display("Chat ended.")
+                break
+
+            loop_result = self.loop(
+                prompt=user_input,
+                previous_messages=chat_messages,
+                callback=self.displaying_callback,
+            )
+
+            chat_messages.extend(loop_result.new_messages)
+            total_input_tokens += loop_result.tokens.input_tokens
+            total_output_tokens += loop_result.tokens.output_tokens
+            last_message_text = loop_result.last_message
+
+            if stop_criteria and stop_criteria(loop_result.new_messages):
+                break
+
+        combined_cost = self.pricing_config.calculate_cost(
+            self.llm_client.model, total_input_tokens, total_output_tokens
+        )
+        combined_tokens = TokenUsage(
+            model=self.llm_client.model,
+            input_tokens=total_input_tokens,
+            output_tokens=total_output_tokens,
+        )
+
+        return LoopResult(
+            new_messages=chat_messages,
+            all_messages=chat_messages,
+            tokens=combined_tokens,
+            cost=combined_cost,
+            last_message=last_message_text,
+        )
+
+    @abstractmethod
+    def _initialize_messages(self, previous_messages: list = None) -> list:
+        """Initialize chat messages. Must be implemented by subclasses."""
+        pass
+
+
+class OpenAIResponsesRunner(BaseToolUsingRunner):
+    """Runner for OpenAI responses API."""
+
+    def _initialize_messages(self, previous_messages: list = None) -> list:
+        if previous_messages is None or len(previous_messages) == 0:
+            return [
+                EasyInputMessage(
+                    role="developer",
+                    content=self.developer_prompt,
+                )
+            ]
+        return list(previous_messages)  # Return a copy
 
     def loop(
         self,
@@ -214,59 +308,6 @@ class OpenAIResponsesRunner(ChatRunner):
             tokens=token_usage,
             cost=cost_info,
             last_message=last_message,
-        )
-
-    def run(
-        self,
-        previous_messages: list = None,
-        stop_criteria: Callable = None,
-    ) -> LoopResult:
-        if previous_messages is None or len(previous_messages) == 0:
-            dev_message = EasyInputMessage(role="developer", content=self.developer_prompt)
-            chat_messages = [dev_message]
-        else:
-            chat_messages = []
-            chat_messages.extend(previous_messages)
-
-        total_input_tokens = 0
-        total_output_tokens = 0
-        last_message_text = ""
-
-        while True:
-            question = self.chat_interface.input()
-            if question.lower() == "stop":
-                self.chat_interface.display("Chat ended.")
-                break
-
-            loop_result = self.loop(
-                prompt=question,
-                previous_messages=chat_messages,
-                callback=self.displaying_callback,
-            )
-
-            chat_messages.extend(loop_result.new_messages)
-            total_input_tokens += loop_result.tokens.input_tokens
-            total_output_tokens += loop_result.tokens.output_tokens
-            last_message_text = loop_result.last_message
-
-            if stop_criteria and stop_criteria(loop_result.new_messages):
-                break
-
-        combined_cost = self.pricing_config.calculate_cost(
-            self.llm_client.model, total_input_tokens, total_output_tokens
-        )
-        combined_tokens = TokenUsage(
-            model=self.llm_client.model,
-            input_tokens=total_input_tokens,
-            output_tokens=total_output_tokens,
-        )
-
-        return LoopResult(
-            new_messages=chat_messages,
-            all_messages=chat_messages,
-            tokens=combined_tokens,
-            cost=combined_cost,
-            last_message=last_message_text,
         )
 
 
@@ -391,23 +432,21 @@ class PydanticAIRunner(ChatRunner):
 
 
 
-class OpenAIChatCompletionsRunner(ChatRunner):
+class OpenAIChatCompletionsRunner(BaseToolUsingRunner):
     """Runner for OpenAI chat completions API."""
 
-    def __init__(
-        self,
-        tools: Tools = None,
-        developer_prompt: str = "You're a helpful assistant.",
-        chat_interface: ChatInterface = None,
-        llm_client: LLMClient = None,
-    ):
-        self.tools = tools
-        self.developer_prompt = developer_prompt
-        self.chat_interface = chat_interface
-        self.llm_client = llm_client
-        self.displaying_callback = DisplayingRunnerCallback(chat_interface)
+    def _initialize_messages(self, previous_messages: list = None) -> list:
+        if previous_messages is None or len(previous_messages) == 0:
+            return [
+                ChatCompletionSystemMessageParam(
+                    role="system",
+                    content=self.developer_prompt
+                )
+            ]
+        return list(previous_messages)  # Return a copy
 
-    def convert_function_output_to_tool_message(self, data):
+    @staticmethod
+    def convert_function_output_to_tool_message(data):
         return ChatCompletionFunctionMessageParam(
             role="tool",
             tool_call_id=data["call_id"],
@@ -526,80 +565,17 @@ class OpenAIChatCompletionsRunner(ChatRunner):
             last_message=last_message,
         )
 
-    def run(
-        self,
-        previous_messages: list = None,
-        stop_criteria: Callable = None,
-    ) -> LoopResult:
-        if previous_messages is None or len(previous_messages) == 0:
-            dev_message = ChatCompletionSystemMessageParam(
-                role="system",
-                content=self.developer_prompt
-            )
-            chat_messages = [dev_message]
-        else:
-            chat_messages = []
-            chat_messages.extend(previous_messages)
 
-        total_input_tokens = 0
-        total_output_tokens = 0
-        last_message_text = ""
-
-        while True:
-            user_input = self.chat_interface.input()
-            if user_input.lower() == "stop":
-                self.chat_interface.display("Chat ended")
-                break
-
-            loop_result = self.loop(
-                prompt=user_input,
-                previous_messages=chat_messages,
-                callback=self.displaying_callback,
-            )
-
-            chat_messages.extend(loop_result.new_messages)
-            total_input_tokens += loop_result.tokens.input_tokens
-            total_output_tokens += loop_result.tokens.output_tokens
-            last_message_text = loop_result.last_message
-
-            if stop_criteria and stop_criteria(loop_result.new_messages):
-                break
-
-        pricing_config = PricingConfig()
-        combined_cost = pricing_config.calculate_cost(
-            self.llm_client.model, total_input_tokens, total_output_tokens
-        )
-        combined_tokens = TokenUsage(
-            model=self.llm_client.model,
-            input_tokens=total_input_tokens,
-            output_tokens=total_output_tokens,
-        )
-
-        return LoopResult(
-            new_messages=chat_messages,
-            all_messages=chat_messages,
-            tokens=combined_tokens,
-            cost=combined_cost,
-            last_message=last_message_text,
-        )
-
-
-class AnthropicMessagesRunner(ChatRunner):
+class AnthropicMessagesRunner(BaseToolUsingRunner):
     """Runner for Anthropic Messages API."""
 
-    def __init__(
-        self,
-        tools: Tools = None,
-        developer_prompt: str = "You're a helpful assistant.",
-        chat_interface: ChatInterface = None,
-        llm_client: LLMClient = None,
-    ):
-        self.tools = tools
-        self.developer_prompt = developer_prompt
-        self.chat_interface = chat_interface
-        self.llm_client = llm_client
-        self.displaying_callback = DisplayingRunnerCallback(chat_interface)
-        self.pricing_config = PricingConfig()
+    def _initialize_messages(self, previous_messages: list = None) -> list:
+        if previous_messages is None or len(previous_messages) == 0:
+            return [{
+                "role": "system",
+                "content": self.developer_prompt
+            }]
+        return list(previous_messages)  # Return a copy
 
     def loop(
         self,
@@ -669,12 +645,7 @@ class AnthropicMessagesRunner(ChatRunner):
                     )
 
                     call_result = self.tools.function_call(function_call)
-
-                    # Handle both dict and object return types from function_call
-                    if isinstance(call_result, dict):
-                        result_output = call_result.get("output", "")
-                    else:
-                        result_output = getattr(call_result, "output", "")
+                    result_output = _get_tool_call_output(call_result)
 
                     # Anthropic expects tool results in a user message with tool_result blocks
                     tool_result_message = {
@@ -718,59 +689,4 @@ class AnthropicMessagesRunner(ChatRunner):
             tokens=token_usage,
             cost=cost_info,
             last_message=last_message,
-        )
-
-    def run(
-        self,
-        previous_messages: list = None,
-        stop_criteria: Callable = None,
-    ) -> LoopResult:
-        if previous_messages is None or len(previous_messages) == 0:
-            chat_messages = [{
-                "role": "system",
-                "content": self.developer_prompt
-            }]
-        else:
-            chat_messages = []
-            chat_messages.extend(previous_messages)
-
-        total_input_tokens = 0
-        total_output_tokens = 0
-        last_message_text = ""
-
-        while True:
-            user_input = self.chat_interface.input()
-            if user_input.lower() == "stop":
-                self.chat_interface.display("Chat ended.")
-                break
-
-            loop_result = self.loop(
-                prompt=user_input,
-                previous_messages=chat_messages,
-                callback=self.displaying_callback,
-            )
-
-            chat_messages.extend(loop_result.new_messages)
-            total_input_tokens += loop_result.tokens.input_tokens
-            total_output_tokens += loop_result.tokens.output_tokens
-            last_message_text = loop_result.last_message
-
-            if stop_criteria and stop_criteria(loop_result.new_messages):
-                break
-
-        combined_cost = self.pricing_config.calculate_cost(
-            self.llm_client.model, total_input_tokens, total_output_tokens
-        )
-        combined_tokens = TokenUsage(
-            model=self.llm_client.model,
-            input_tokens=total_input_tokens,
-            output_tokens=total_output_tokens,
-        )
-
-        return LoopResult(
-            new_messages=chat_messages,
-            all_messages=chat_messages,
-            tokens=combined_tokens,
-            cost=combined_cost,
-            last_message=last_message_text,
         )
