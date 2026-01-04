@@ -1,11 +1,12 @@
 from pydantic import BaseModel
-from tests_integration.utils import find_function_calls_chat_completions
 
-from toyaikit.tools import Tools
-from toyaikit.llm import OpenAIChatCompletionsClient
+from tests_integration.utils import find_function_calls_chat_completions
 from toyaikit.chat.runners import OpenAIChatCompletionsRunner
+from toyaikit.llm import OpenAIChatCompletionsClient
+from toyaikit.tools import Tools
 
 from .utils import _TestCallback
+
 
 def test_responses_api_tools_structured_output():
     llm_client = OpenAIChatCompletionsClient(model='gpt-4o-mini')

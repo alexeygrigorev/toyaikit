@@ -29,6 +29,7 @@ classifiers = [
 ]
 requires-python = ">=3.10"
 dependencies = [
+    "anthropic>=0.40.0",
     "genai-prices>=0.0.34",
     "ipython",
     "mistune>=3.1.3",

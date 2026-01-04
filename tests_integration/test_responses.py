@@ -1,9 +1,9 @@
 from pydantic import BaseModel
-from tests_integration.utils import find_function_calls_responses
 
-from toyaikit.tools import Tools
-from toyaikit.llm import OpenAIClient
+from tests_integration.utils import find_function_calls_responses
 from toyaikit.chat.runners import OpenAIResponsesRunner
+from toyaikit.llm import OpenAIClient
+from toyaikit.tools import Tools
 
 from .utils import _TestCallback
 

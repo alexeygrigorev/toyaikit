@@ -11,6 +11,8 @@ from openai.types.chat.chat_completion_system_message_param import ChatCompletio
 from openai.types.chat.chat_completion_user_message_param import ChatCompletionUserMessageParam
 from openai.types.chat.chat_completion_function_message_param import ChatCompletionFunctionMessageParam
 
+from anthropic.types import Message as AnthropicMessage
+
 
 from toyaikit.chat.interface import ChatInterface
 from toyaikit.llm import LLMClient
@@ -565,6 +567,198 @@ class OpenAIChatCompletionsRunner(ChatRunner):
 
         pricing_config = PricingConfig()
         combined_cost = pricing_config.calculate_cost(
+            self.llm_client.model, total_input_tokens, total_output_tokens
+        )
+        combined_tokens = TokenUsage(
+            model=self.llm_client.model,
+            input_tokens=total_input_tokens,
+            output_tokens=total_output_tokens,
+        )
+
+        return LoopResult(
+            new_messages=chat_messages,
+            all_messages=chat_messages,
+            tokens=combined_tokens,
+            cost=combined_cost,
+            last_message=last_message_text,
+        )
+
+
+class AnthropicMessagesRunner(ChatRunner):
+    """Runner for Anthropic Messages API."""
+
+    def __init__(
+        self,
+        tools: Tools = None,
+        developer_prompt: str = "You're a helpful assistant.",
+        chat_interface: ChatInterface = None,
+        llm_client: LLMClient = None,
+    ):
+        self.tools = tools
+        self.developer_prompt = developer_prompt
+        self.chat_interface = chat_interface
+        self.llm_client = llm_client
+        self.displaying_callback = DisplayingRunnerCallback(chat_interface)
+        self.pricing_config = PricingConfig()
+
+    def loop(
+        self,
+        prompt: str,
+        previous_messages: list = None,
+        callback: RunnerCallback = None,
+        output_format: BaseModel = None,
+    ) -> LoopResult:
+        chat_messages = []
+        prev_messages_len = 0
+
+        if previous_messages is None or len(previous_messages) == 0:
+            chat_messages.append({
+                "role": "system",
+                "content": self.developer_prompt
+            })
+        else:
+            chat_messages.extend(previous_messages)
+            prev_messages_len = len(previous_messages)
+
+        chat_messages.append({
+            "role": "user",
+            "content": prompt
+        })
+
+        total_input_tokens = 0
+        total_output_tokens = 0
+
+        while True:
+            response = self.llm_client.send_request(
+                chat_messages=chat_messages,
+                tools=self.tools,
+                output_format=output_format,
+            )
+
+            if callback:
+                callback.on_response(response)
+
+            # Track token usage
+            if hasattr(response, "usage") and response.usage:
+                total_input_tokens += response.usage.input_tokens
+                total_output_tokens += response.usage.output_tokens
+
+            # Process the response
+            assistant_message = {
+                "role": "assistant",
+                "content": response.content
+            }
+            chat_messages.append(assistant_message)
+
+            has_tool_calls = False
+            text_content = []
+
+            for block in response.content:
+                if block.type == "text":
+                    text_content.append(block.text)
+                    if callback:
+                        callback.on_message(block.text)
+
+                elif block.type == "tool_use":
+                    has_tool_calls = True
+                    function_call = ResponseFunctionToolCall(
+                        type="function_call",
+                        name=block.name,
+                        arguments=json.dumps(block.input),
+                        call_id=block.id,
+                    )
+
+                    call_result = self.tools.function_call(function_call)
+
+                    # Handle both dict and object return types from function_call
+                    if isinstance(call_result, dict):
+                        result_output = call_result.get("output", "")
+                    else:
+                        result_output = getattr(call_result, "output", "")
+
+                    # Anthropic expects tool results in a user message with tool_result blocks
+                    tool_result_message = {
+                        "role": "tool",
+                        "tool_call_id": block.id,
+                        "content": result_output
+                    }
+                    chat_messages.append(tool_result_message)
+
+                    if callback:
+                        callback.on_function_call(function_call, result_output)
+
+            if not has_tool_calls:
+                break
+
+        cost_info = self.pricing_config.calculate_cost(
+            self.llm_client.model, total_input_tokens, total_output_tokens
+        )
+
+        token_usage = TokenUsage(
+            model=self.llm_client.model,
+            input_tokens=total_input_tokens,
+            output_tokens=total_output_tokens,
+        )
+
+        new_messages = chat_messages[prev_messages_len:]
+
+        # Extract last message text
+        last_message_text = ""
+        last_message = None
+        if text_content:
+            last_message_text = "".join(text_content)
+            if output_format:
+                last_message = output_format.model_validate_json(last_message_text)
+            else:
+                last_message = last_message_text
+
+        return LoopResult(
+            new_messages=new_messages,
+            all_messages=chat_messages,
+            tokens=token_usage,
+            cost=cost_info,
+            last_message=last_message,
+        )
+
+    def run(
+        self,
+        previous_messages: list = None,
+        stop_criteria: Callable = None,
+    ) -> LoopResult:
+        if previous_messages is None or len(previous_messages) == 0:
+            chat_messages = [{
+                "role": "system",
+                "content": self.developer_prompt
+            }]
+        else:
+            chat_messages = []
+            chat_messages.extend(previous_messages)
+
+        total_input_tokens = 0
+        total_output_tokens = 0
+        last_message_text = ""
+
+        while True:
+            user_input = self.chat_interface.input()
+            if user_input.lower() == "stop":
+                self.chat_interface.display("Chat ended.")
+                break
+
+            loop_result = self.loop(
+                prompt=user_input,
+                previous_messages=chat_messages,
+                callback=self.displaying_callback,
+            )
+
+            chat_messages.extend(loop_result.new_messages)
+            total_input_tokens += loop_result.tokens.input_tokens
+            total_output_tokens += loop_result.tokens.output_tokens
+            last_message_text = loop_result.last_message
+
+            if stop_criteria and stop_criteria(loop_result.new_messages):
+                break
+
+        combined_cost = self.pricing_config.calculate_cost(
             self.llm_client.model, total_input_tokens, total_output_tokens
         )
         combined_tokens = TokenUsage(

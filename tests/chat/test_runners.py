@@ -6,6 +6,7 @@ import pytest
 
 from toyaikit.chat.interface import ChatInterface
 from toyaikit.chat.runners import (
+    AnthropicMessagesRunner,
     ChatRunner,
     DisplayingRunnerCallback,
     LoopResult,
@@ -996,3 +997,203 @@ class TestAbstractMethodCoverage:
         # Test with all parameters
         result = runner.loop("test", ["prev"], Mock())
         assert result is None
+
+
+class TestAnthropicMessagesRunner:
+    def setup_method(self):
+        """Set up test fixtures"""
+        self.mock_tools = Mock(spec=Tools)
+        self.mock_interface = Mock(spec=ChatInterface)
+        self.mock_llm_client = Mock(spec=LLMClient)
+
+        self.runner = AnthropicMessagesRunner(
+            tools=self.mock_tools,
+            developer_prompt="Test system prompt",
+            chat_interface=self.mock_interface,
+            llm_client=self.mock_llm_client,
+        )
+
+    def test_initialization(self):
+        """Test AnthropicMessagesRunner initialization"""
+        assert self.runner.tools == self.mock_tools
+        assert self.runner.developer_prompt == "Test system prompt"
+        assert self.runner.chat_interface == self.mock_interface
+        assert self.runner.llm_client == self.mock_llm_client
+
+    def test_initialization_with_defaults(self):
+        """Test initialization with default parameters"""
+        runner = AnthropicMessagesRunner()
+
+        assert runner.tools is None
+        assert runner.developer_prompt == "You're a helpful assistant."
+        assert runner.chat_interface is None
+        assert runner.llm_client is None
+
+    def test_loop_simple_message(self):
+        """Test loop method with simple text message response"""
+        # Mock Anthropic response with text content
+        text_block = D(type="text", text="Hello there")
+        mock_response = Mock()
+        mock_response.content = [text_block]
+        mock_usage = D(input_tokens=10, output_tokens=20)
+        mock_response.usage = mock_usage
+
+        self.mock_llm_client.send_request.return_value = mock_response
+        self.mock_llm_client.model = "claude-sonnet-4-5-20250514"
+
+        result = self.runner.loop("Test prompt")
+
+        # Should call send_request with correct format
+        args, kwargs = self.mock_llm_client.send_request.call_args
+        assert kwargs["tools"] is self.mock_tools
+        assert kwargs["output_format"] is None
+        chat_messages = kwargs["chat_messages"]
+
+        # Should have system message and user message
+        assert len(chat_messages) >= 2
+        assert chat_messages[0] == {"role": "system", "content": "Test system prompt"}
+        assert chat_messages[1] == {"role": "user", "content": "Test prompt"}
+
+        # Should return LoopResult
+        assert isinstance(result, LoopResult)
+        assert result.tokens.input_tokens == 10
+        assert result.tokens.output_tokens == 20
+        assert result.last_message == "Hello there"
+
+    def test_loop_with_tool_calls(self):
+        """Test loop method with tool use blocks"""
+        # Mock tool_use block
+        tool_use_block = D(
+            type="tool_use",
+            id="toolu_123",
+            name="test_func",
+            input={"param": "value"}
+        )
+
+        mock_response_with_tool = Mock()
+        mock_response_with_tool.content = [tool_use_block]
+        mock_usage = D(input_tokens=10, output_tokens=20)
+        mock_response_with_tool.usage = mock_usage
+
+        # Mock final text response
+        text_block = D(type="text", text="Final response")
+        mock_response_final = Mock()
+        mock_response_final.content = [text_block]
+        mock_response_final.usage = mock_usage
+
+        self.mock_llm_client.send_request.side_effect = [
+            mock_response_with_tool,
+            mock_response_final
+        ]
+        self.mock_llm_client.model = "claude-sonnet-4-5-20250514"
+
+        # Mock the function_call return value as a proper object
+        function_call_output = D(
+            type="function_call_output",
+            call_id="toolu_123",
+            output='{"result": "success"}',
+        )
+        self.mock_tools.function_call.return_value = function_call_output
+
+        mock_callback = Mock()
+        result = self.runner.loop("Test prompt", callback=mock_callback)
+
+        # Should call function_call on tools
+        self.mock_tools.function_call.assert_called_once()
+        actual_call = self.mock_tools.function_call.call_args[0][0]
+        assert actual_call.name == "test_func"
+        assert actual_call.call_id == "toolu_123"
+
+        # Should call function call callback
+        mock_callback.on_function_call.assert_called_once()
+
+        # Should make two LLM calls
+        assert self.mock_llm_client.send_request.call_count == 2
+
+    def test_loop_with_previous_messages(self):
+        """Test loop method with previous messages"""
+        previous_messages = [{"role": "user", "content": "Previous"}]
+
+        text_block = D(type="text", text="Hello")
+        mock_response = Mock()
+        mock_response.content = [text_block]
+        mock_usage = D(input_tokens=10, output_tokens=20)
+        mock_response.usage = mock_usage
+
+        self.mock_llm_client.send_request.return_value = mock_response
+        self.mock_llm_client.model = "claude-sonnet-4-5-20250514"
+
+        result = self.runner.loop("Test prompt", previous_messages=previous_messages)
+
+        # Should include previous messages
+        args, kwargs = self.mock_llm_client.send_request.call_args
+        chat_messages = kwargs["chat_messages"]
+        assert len(chat_messages) >= 2
+        assert chat_messages[0] == {"role": "user", "content": "Previous"}
+        assert chat_messages[1] == {"role": "user", "content": "Test prompt"}
+
+    def test_loop_with_message_callback(self):
+        """Test loop method calls message callback"""
+        text_block = D(type="text", text="Test response")
+        mock_response = Mock()
+        mock_response.content = [text_block]
+        mock_usage = D(input_tokens=10, output_tokens=20)
+        mock_response.usage = mock_usage
+
+        self.mock_llm_client.send_request.return_value = mock_response
+        self.mock_llm_client.model = "claude-sonnet-4-5-20250514"
+
+        mock_callback = Mock()
+        self.runner.loop("Test prompt", callback=mock_callback)
+
+        mock_callback.on_message.assert_called_once_with("Test response")
+
+    def test_run_interactive_chat(self):
+        """Test run method for interactive chat"""
+        self.mock_interface.input.side_effect = ["hello", "stop"]
+        self.mock_llm_client.model = "claude-sonnet-4-5-20250514"
+
+        # Mock response for the hello message
+        text_block = D(type="text", text="Hi there")
+        mock_response = Mock()
+        mock_response.content = [text_block]
+        mock_usage = D(input_tokens=10, output_tokens=20)
+        mock_response.usage = mock_usage
+        self.mock_llm_client.send_request.return_value = mock_response
+
+        self.runner.run()
+
+        # Should call input twice
+        assert self.mock_interface.input.call_count == 2
+
+        # Should display "Chat ended."
+        self.mock_interface.display.assert_called_with("Chat ended.")
+
+    def test_run_with_stop_criteria(self):
+        """Test run method with stop criteria"""
+        self.mock_interface.input.side_effect = ["hello", "world"]
+        self.mock_llm_client.model = "claude-sonnet-4-5-20250514"
+
+        def stop_criteria(messages):
+            return any("stop" in str(msg) for msg in messages)
+
+        # First response - no stop word
+        text_block1 = D(type="text", text="Hi")
+        mock_response1 = Mock()
+        mock_response1.content = [text_block1]
+        mock_usage1 = D(input_tokens=10, output_tokens=20)
+        mock_response1.usage = mock_usage1
+
+        # Second response - contains stop word
+        text_block2 = D(type="text", text="Please stop now")
+        mock_response2 = Mock()
+        mock_response2.content = [text_block2]
+        mock_usage2 = D(input_tokens=10, output_tokens=20)
+        mock_response2.usage = mock_usage2
+
+        self.mock_llm_client.send_request.side_effect = [mock_response1, mock_response2]
+
+        self.runner.run(stop_criteria=stop_criteria)
+
+        # Should stop after second message due to stop criteria
+        assert self.mock_llm_client.send_request.call_count == 2

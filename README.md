@@ -466,6 +466,47 @@ runner = OpenAIChatCompletionsRunner(
 runner.run()
 ```
 
+### Anthropic (Claude)
+
+**Using Anthropic's Messages API:**
+
+```python
+import os
+
+from toyaikit import AnthropicClient, AnthropicMessagesRunner
+from toyaikit.tools import Tools
+from toyaikit.chat import IPythonChatInterface
+
+# Setup Anthropic client
+# Uses ANTHROPIC_API_KEY from environment automatically
+llm_client = AnthropicClient(
+    model="claude-sonnet-4-5-20250514",
+)
+
+# Or with custom base URL (e.g., for z.ai compatibility)
+llm_client = AnthropicClient(
+    api_key=os.environ.get("ZAI_AUTH_TOKEN"),
+    base_url="https://api.z.ai/api/anthropic",
+    model="claude-sonnet-4-5-20250929",
+)
+
+# Setup tools and run
+agent_tools = ... # class with some functions to be called
+
+tools = Tools()
+tools.add_tools(agent_tools)
+
+runner = AnthropicMessagesRunner(
+    tools=tools,
+    developer_prompt="You are a helpful assistant.",
+    chat_interface=IPythonChatInterface(),
+    llm_client=llm_client
+)
+
+runner.run()
+```
+
+
 ### OpenAI Agents SDK Integration
 
 ```python

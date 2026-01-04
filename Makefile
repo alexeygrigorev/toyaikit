@@ -31,3 +31,7 @@ publish:
 
 publish-clean:
 	rm -r dist/
+
+# Run the full publish script (tests, version bump, build, upload)
+publish-script:
+	uv run python scripts/publish.py

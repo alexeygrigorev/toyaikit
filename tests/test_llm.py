@@ -4,7 +4,7 @@ import pytest
 from openai import OpenAI
 from pydantic import BaseModel
 
-from toyaikit.llm import LLMClient, OpenAIChatCompletionsClient, OpenAIClient
+from toyaikit.llm import LLMClient, OpenAIChatCompletionsClient, OpenAIClient, AnthropicClient
 from toyaikit.tools import Tools
 
 
@@ -365,3 +365,237 @@ class TestOpenAIChatCompletionsClient:
         sent_tools = kwargs["tools"]
         assert isinstance(sent_tools, list) and len(sent_tools) == 1
         assert sent_tools[0]["function"]["strict"] is True
+
+
+class TestAnthropicClient:
+    def test_initialization_with_defaults(self):
+        """Test AnthropicClient initialization with default parameters"""
+        with patch("anthropic.Anthropic") as mock_anthropic:
+            mock_client_instance = Mock()
+            mock_anthropic.return_value = mock_client_instance
+
+            client = AnthropicClient()
+
+            assert client.model == "claude-sonnet-4-5-20250514"
+            assert client.client == mock_client_instance
+            assert client.extra_kwargs == {}
+            mock_anthropic.assert_called_once_with()
+
+    def test_initialization_with_custom_model(self):
+        """Test AnthropicClient initialization with custom model"""
+        with patch("anthropic.Anthropic") as mock_anthropic:
+            mock_client_instance = Mock()
+            mock_anthropic.return_value = mock_client_instance
+
+            client = AnthropicClient(model="claude-haiku-4-20250514")
+
+            assert client.model == "claude-haiku-4-20250514"
+            assert client.client == mock_client_instance
+
+    def test_initialization_with_api_key(self):
+        """Test AnthropicClient initialization with API key"""
+        with patch("anthropic.Anthropic") as mock_anthropic:
+            mock_client_instance = Mock()
+            mock_anthropic.return_value = mock_client_instance
+
+            client = AnthropicClient(api_key="test-api-key")
+
+            mock_anthropic.assert_called_once_with(api_key="test-api-key")
+
+    def test_initialization_with_base_url(self):
+        """Test AnthropicClient initialization with base URL (for compatible APIs)"""
+        with patch("anthropic.Anthropic") as mock_anthropic:
+            mock_client_instance = Mock()
+            mock_anthropic.return_value = mock_client_instance
+
+            client = AnthropicClient(base_url="https://api.example.com")
+
+            mock_anthropic.assert_called_once_with(base_url="https://api.example.com")
+
+    def test_initialization_with_extra_kwargs(self):
+        """Test AnthropicClient initialization with extra kwargs"""
+        with patch("anthropic.Anthropic") as mock_anthropic:
+            mock_client_instance = Mock()
+            mock_anthropic.return_value = mock_client_instance
+
+            extra_kwargs = {"temperature": 0.7, "max_tokens": 1000}
+            client = AnthropicClient(extra_kwargs=extra_kwargs)
+
+            assert client.extra_kwargs == extra_kwargs
+
+    def test_import_error_when_anthropic_not_installed(self):
+        """Test ImportError is raised when anthropic package is not available"""
+        # Patch the import at the module level before client initialization
+        import sys
+        anthropic_module = sys.modules.get('anthropic')
+        try:
+            # Remove anthropic from sys.modules to trigger ImportError
+            if 'anthropic' in sys.modules:
+                del sys.modules['anthropic']
+
+            # Mock the import to fail
+            import builtins
+            original_import = builtins.__import__
+
+            def mock_import(name, *args, **kwargs):
+                if name == 'anthropic':
+                    raise ImportError("No module named 'anthropic'")
+                return original_import(name, *args, **kwargs)
+
+            with patch.object(builtins, '__import__', side_effect=mock_import):
+                with pytest.raises(ImportError, match="Please run 'pip install anthropic'"):
+                    AnthropicClient()
+        finally:
+            # Restore the original module if it existed
+            if anthropic_module is not None:
+                sys.modules['anthropic'] = anthropic_module
+
+    def test_convert_openai_tool_to_anthropic(self):
+        """Test converting OpenAI tool format to Anthropic format"""
+        with patch("anthropic.Anthropic"):
+            client = AnthropicClient()
+
+            openai_tool = {
+                "type": "function",
+                "name": "search",
+                "description": "Search the database",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "query": {"type": "string", "description": "Search query"}
+                    },
+                    "required": ["query"],
+                },
+            }
+
+            result = client.convert_openai_tool_to_anthropic(openai_tool)
+
+            expected = {
+                "name": "search",
+                "description": "Search the database",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "query": {"type": "string", "description": "Search query"}
+                    },
+                    "required": ["query"],
+                },
+            }
+
+            assert result == expected
+
+    def test_send_request_without_tools(self):
+        """Test send_request without tools"""
+        mock_client = Mock()
+        mock_response = Mock()
+        mock_response.content = [Mock(type="text", text="Hello")]
+        mock_client.messages.create.return_value = mock_response
+
+        with patch("anthropic.Anthropic", return_value=mock_client):
+            client = AnthropicClient()
+            chat_messages = [{"role": "user", "content": "Hello"}]
+
+            result = client.send_request(chat_messages)
+
+            assert result == mock_response
+
+            # Verify the call was made with correct arguments
+            call_args = mock_client.messages.create.call_args
+            kwargs = call_args[1]
+            assert kwargs["model"] == "claude-sonnet-4-5-20250514"
+            assert kwargs["messages"] == [{"role": "user", "content": "Hello"}]
+
+    def test_send_request_with_system_message(self):
+        """Test send_request with system message"""
+        mock_client = Mock()
+        mock_response = Mock()
+        mock_response.content = [Mock(type="text", text="Hello")]
+        mock_client.messages.create.return_value = mock_response
+
+        with patch("anthropic.Anthropic", return_value=mock_client):
+            client = AnthropicClient()
+            chat_messages = [
+                {"role": "system", "content": "You are a helpful assistant"},
+                {"role": "user", "content": "Hello"}
+            ]
+
+            result = client.send_request(chat_messages)
+
+            call_args = mock_client.messages.create.call_args
+            kwargs = call_args[1]
+            assert kwargs["system"] == "You are a helpful assistant"
+            assert kwargs["messages"] == [{"role": "user", "content": "Hello"}]
+
+    def test_send_request_with_tools(self):
+        """Test send_request with tools"""
+        mock_client = Mock()
+        mock_response = Mock()
+        mock_client.messages.create.return_value = mock_response
+
+        tools = Mock(spec=Tools)
+        tools_list = [
+            {
+                "type": "function",
+                "name": "search",
+                "description": "Search",
+                "parameters": {"type": "object", "properties": {}},
+            }
+        ]
+        tools.get_tools.return_value = tools_list
+
+        with patch("anthropic.Anthropic", return_value=mock_client):
+            client = AnthropicClient()
+            chat_messages = [{"role": "user", "content": "Hello"}]
+
+            result = client.send_request(chat_messages, tools=tools)
+
+            call_args = mock_client.messages.create.call_args
+            kwargs = call_args[1]
+
+            # Tools should be converted to Anthropic format
+            expected_tools = [
+                {
+                    "name": "search",
+                    "description": "Search",
+                    "input_schema": {"type": "object", "properties": {}},
+                }
+            ]
+            assert kwargs["tools"] == expected_tools
+
+    def test_send_request_with_extra_kwargs(self):
+        """Test send_request passes extra kwargs"""
+        mock_client = Mock()
+        mock_response = Mock()
+        mock_client.messages.create.return_value = mock_response
+
+        with patch("anthropic.Anthropic", return_value=mock_client):
+            extra_kwargs = {"temperature": 0.7, "max_tokens": 1000}
+            client = AnthropicClient(extra_kwargs=extra_kwargs)
+            chat_messages = [{"role": "user", "content": "Hello"}]
+
+            result = client.send_request(chat_messages)
+
+            call_args = mock_client.messages.create.call_args
+            kwargs = call_args[1]
+            assert kwargs["temperature"] == 0.7
+            assert kwargs["max_tokens"] == 1000
+
+    def test_send_request_with_output_format(self):
+        """Test send_request with output_format (structured output)"""
+        mock_client = Mock()
+        mock_response = Mock()
+        mock_client.messages.create.return_value = mock_response
+
+        class TestOutputFormat(BaseModel):
+            field: str
+
+        with patch("anthropic.Anthropic", return_value=mock_client):
+            client = AnthropicClient()
+            chat_messages = [{"role": "user", "content": "Hello"}]
+
+            result = client.send_request(chat_messages, output_format=TestOutputFormat)
+
+            call_args = mock_client.messages.create.call_args
+            kwargs = call_args[1]
+            assert "response_format" in kwargs
+            assert kwargs["response_format"]["type"] == "json_schema"
