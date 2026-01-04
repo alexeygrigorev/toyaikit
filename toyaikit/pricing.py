@@ -95,6 +95,7 @@ class PricingConfig:
 # Fallback pricing for models not in genai_prices (per 1M tokens)
 FALLBACK_PRICING = {
     # Z.ai: https://docs.z.ai/guides/overview/pricing
+    "glm-4.7": {"input": Decimal("0.6"), "output": Decimal("2.2")},
     "glm-4.6": {"input": Decimal("0.6"), "output": Decimal("2.2")},
     "glm-4.5": {"input": Decimal("0.6"), "output": Decimal("2.2")},
     "glm-4.5v": {"input": Decimal("0.6"), "output": Decimal("1.8")},
