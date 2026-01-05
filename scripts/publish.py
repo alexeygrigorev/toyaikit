@@ -56,14 +56,14 @@ def check_tag_not_exists(new_version):
     """Check if the tag already exists."""
     project_root = Path(__file__).parent.parent
     result = run(
-        ["git", "tag", "-l", f"v{new_version}"],
+        ["git", "tag", "-l", f"{new_version}"],
         cwd=project_root,
         check=False,
     )
     if result.stdout.strip():
-        print(f"ERROR: Tag v{new_version} already exists.", file=sys.stderr)
+        print(f"ERROR: Tag {new_version} already exists.", file=sys.stderr)
         print("\nTo re-release this version, first delete the existing tag:", file=sys.stderr)
-        print(f"  git tag -d v{new_version}", file=sys.stderr)
+        print(f"  git tag -d {new_version}", file=sys.stderr)
         sys.exit(1)
 
 
@@ -240,7 +240,7 @@ def main():
     project_root = Path(__file__).parent.parent
     run(["git", "add", "toyaikit/__version__.py"], cwd=project_root)
     run(["git", "commit", "-m", f"Bump version to {new_version}"], cwd=project_root)
-    run(["git", "tag", f"v{new_version}"], cwd=project_root)
+    run(["git", "tag", f"{new_version}"], cwd=project_root)
 
     # Push tag
     print("\n=== Pushing to GitHub ===")
