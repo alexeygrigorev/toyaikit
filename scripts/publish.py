@@ -37,6 +37,36 @@ def run(cmd, check=True, shell=False, cwd=None):
     return result
 
 
+def check_git_clean():
+    """Check if there are no uncommitted changes in toyaikit directory."""
+    project_root = Path(__file__).parent.parent
+    result = run(
+        ["git", "status", "--porcelain", "toyaikit/"],
+        cwd=project_root,
+        check=False,
+    )
+    if result.stdout.strip():
+        print("ERROR: There are uncommitted changes in toyaikit/:", file=sys.stderr)
+        print(result.stdout, file=sys.stderr)
+        print("\nPlease commit or stash your changes before publishing.", file=sys.stderr)
+        sys.exit(1)
+
+
+def check_tag_not_exists(new_version):
+    """Check if the tag already exists."""
+    project_root = Path(__file__).parent.parent
+    result = run(
+        ["git", "tag", "-l", f"v{new_version}"],
+        cwd=project_root,
+        check=False,
+    )
+    if result.stdout.strip():
+        print(f"ERROR: Tag v{new_version} already exists.", file=sys.stderr)
+        print("\nTo re-release this version, first delete the existing tag:", file=sys.stderr)
+        print(f"  git tag -d v{new_version}", file=sys.stderr)
+        sys.exit(1)
+
+
 def get_current_version():
     """Get the current version from __version__.py."""
     version_file = Path(__file__).parent.parent / "toyaikit" / "__version__.py"
@@ -106,8 +136,8 @@ def build_package():
     run(["make", "publish-build"], cwd=project_root)
 
 
-def publish_to(repository_url):
-    """Publish package to a specific repository."""
+def publish_to(repository_name):
+    """Publish package to a specific repository (uses .pypirc config)."""
     project_root = Path(__file__).parent.parent
     dist_dir = project_root / "dist"
 
@@ -118,10 +148,10 @@ def publish_to(repository_url):
     if not wheels or not tarballs:
         raise FileNotFoundError("No wheel or tar.gz files found in dist/")
 
-    # Publish
+    # Publish using repository name from .pypirc
     files_to_upload = [str(wheels[0]), str(tarballs[0])]
     run(
-        ["uv", "run", "twine", "upload", "--repository-url", repository_url]
+        ["uv", "run", "twine", "upload", "--repository", repository_name]
         + files_to_upload,
         cwd=project_root,
     )
@@ -165,6 +195,9 @@ def main():
 
     args = parser.parse_args()
 
+    # Check for uncommitted changes
+    check_git_clean()
+
     # Determine bump type
     bump_type = "patch"
     if args.major:
@@ -179,6 +212,9 @@ def main():
     new_version = bump_version(current_version, bump_type, args.version)
     print(f"New version: {new_version}")
 
+    # Check if tag already exists
+    check_tag_not_exists(new_version)
+
     # Run tests
     if not args.skip_tests:
         run_tests()
@@ -186,28 +222,25 @@ def main():
     # Set new version
     set_version(new_version)
 
-    # Commit and tag
-    print("\n=== Committing and tagging ===")
-    project_root = Path(__file__).parent.parent
-    run(["git", "add", "toyaikit/__version__.py"], cwd=project_root)
-    run(["git", "commit", "-m", f"Bump version to {new_version}"], cwd=project_root)
-    run(["git", "tag", f"v{new_version}"], cwd=project_root)
-
     # Build
     clean_dist()
     build_package()
 
     # Publish
-    TESTPYPI_URL = "https://test.pypi.org/legacy/"
-    PROD_PYPI_URL = "https://upload.pypi.org/legacy/"
-
     if not args.prod_only:
         print("\n=== Publishing to TestPyPI ===")
-        publish_to(TESTPYPI_URL)
+        publish_to("testpypi")
 
     if not args.dev_only:
         print("\n=== Publishing to PyPI ===")
-        publish_to(PROD_PYPI_URL)
+        publish_to("pypi")
+
+    # Commit and tag (only after successful publish)
+    print("\n=== Committing and tagging ===")
+    project_root = Path(__file__).parent.parent
+    run(["git", "add", "toyaikit/__version__.py"], cwd=project_root)
+    run(["git", "commit", "-m", f"Bump version to {new_version}"], cwd=project_root)
+    run(["git", "tag", f"v{new_version}"], cwd=project_root)
 
     # Push tag
     print("\n=== Pushing to GitHub ===")
