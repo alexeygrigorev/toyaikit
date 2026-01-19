@@ -39,7 +39,7 @@ class LoopResult(Generic[T]):
     new_messages: list
     all_messages: list
     tokens: TokenUsage
-    cost: CostInfo
+    cost: CostInfo | None
     last_message: T
 
 

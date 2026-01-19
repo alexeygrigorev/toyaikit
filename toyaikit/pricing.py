@@ -44,7 +44,7 @@ class PricingConfig:
         :param str model: Name of LLM model
         :param int input_tokens: Number of input tokens
         :param int output_tokens: Number of output tokens
-        :return CostInfo: Object containing input cost, ouput cost and total cost
+        :return CostInfo | None: Object containing input cost, ouput cost and total cost, or None if model not found
         """
         try:
             provider = None
@@ -60,7 +60,7 @@ class PricingConfig:
                 total_cost=price_data.total_price,
             )
 
-        except LookupError as le:
+        except LookupError:
             # Try fallback pricing for models not in genai_prices
             model_key = model.lower()
             if model_key in FALLBACK_PRICING:
@@ -70,10 +70,8 @@ class PricingConfig:
                 output_cost = (pricing["output"] * output_tokens) / Decimal("1000000")
                 return CostInfo.create(input_cost=input_cost, output_cost=output_cost)
             
-            raise LookupError(
-                "Please check model name. Use list_all_models function to see list of supported models.",
-                le,
-            )
+            # Return None for unknown models instead of raising error
+            return None
 
     def all_available_models(self):
         """Lists all available models which has price data.

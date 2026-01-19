@@ -72,15 +72,16 @@ class TestPricingConfig:
         assert pricing_config_result.total_cost == Decimal("0.0225") + Decimal("0.12")
 
     def test_calculate_cost_wrong_model(self):
-        """Test calculate cost with wrong model name."""
+        """Test calculate cost with wrong model name returns None."""
         input_tokens = 500
         output_tokens = 1000
         model = "IamBatman"
 
-        with pytest.raises(LookupError):
-            self.pricing_config.calculate_cost(
-                model=model, input_tokens=input_tokens, output_tokens=output_tokens
-            )
+        result = self.pricing_config.calculate_cost(
+            model=model, input_tokens=input_tokens, output_tokens=output_tokens
+        )
+        
+        assert result is None
 
     def test_list_all_models(self):
         """Test list all models function."""
@@ -143,5 +144,17 @@ class TestPricingConfig:
         assert pricing_config_result.input_cost == Decimal("0.4")  # 2M * $0.2
         assert pricing_config_result.output_cost == Decimal("4.5")  # 1M * $4.5
         assert pricing_config_result.total_cost == Decimal("4.9")
+
+    def test_calculate_cost_groq_unknown_model(self):
+        """Test that unknown Groq model returns None instead of raising error."""
+        input_tokens = 1000
+        output_tokens = 500
+        model = "openai/gpt-oss-20b"
+
+        result = self.pricing_config.calculate_cost(
+            model=model, input_tokens=input_tokens, output_tokens=output_tokens
+        )
+        
+        assert result is None
         
         
