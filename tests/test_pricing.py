@@ -1,9 +1,10 @@
+import warnings
 from decimal import Decimal
 
 import pytest
 from genai_prices import Usage, calc_price
 
-from toyaikit.pricing import PricingConfig, CostInfo
+from toyaikit.pricing import PricingConfig, CostInfo, UnknownModelWarning
 
 
 class TestPricingConfig:
@@ -72,15 +73,16 @@ class TestPricingConfig:
         assert pricing_config_result.total_cost == Decimal("0.0225") + Decimal("0.12")
 
     def test_calculate_cost_wrong_model(self):
-        """Test calculate cost with wrong model name returns None."""
+        """Test calculate cost with wrong model name returns None and warns."""
         input_tokens = 500
         output_tokens = 1000
         model = "IamBatman"
 
-        result = self.pricing_config.calculate_cost(
-            model=model, input_tokens=input_tokens, output_tokens=output_tokens
-        )
-        
+        with pytest.warns(UnknownModelWarning, match="IamBatman"):
+            result = self.pricing_config.calculate_cost(
+                model=model, input_tokens=input_tokens, output_tokens=output_tokens
+            )
+
         assert result is None
 
     def test_list_all_models(self):
@@ -146,15 +148,46 @@ class TestPricingConfig:
         assert pricing_config_result.total_cost == Decimal("4.9")
 
     def test_calculate_cost_groq_unknown_model(self):
-        """Test that unknown Groq model returns None instead of raising error."""
+        """Test that unknown Groq model returns None and warns."""
         input_tokens = 1000
         output_tokens = 500
         model = "openai/gpt-oss-20b"
 
-        result = self.pricing_config.calculate_cost(
-            model=model, input_tokens=input_tokens, output_tokens=output_tokens
-        )
-        
+        with pytest.warns(UnknownModelWarning):
+            result = self.pricing_config.calculate_cost(
+                model=model, input_tokens=input_tokens, output_tokens=output_tokens
+            )
+
         assert result is None
-        
-        
+
+    def test_register_model_adds_fallback_pricing(self):
+        """Users can register pricing for unknown models."""
+        self.pricing_config.register_model("my-custom-model", input_price=1.0, output_price=3.0)
+
+        result = self.pricing_config.calculate_cost(
+            model="my-custom-model", input_tokens=1_000_000, output_tokens=500_000
+        )
+
+        assert result.input_cost == Decimal("1.0")
+        assert result.output_cost == Decimal("1.5")
+        assert result.total_cost == Decimal("2.5")
+
+    def test_register_model_does_not_warn(self):
+        """Registered models should not trigger UnknownModelWarning."""
+        self.pricing_config.register_model("quiet-model", input_price="0.5", output_price="1.5")
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", UnknownModelWarning)
+            result = self.pricing_config.calculate_cost(
+                model="quiet-model", input_tokens=1000, output_tokens=1000
+            )
+
+        assert result is not None
+
+    def test_register_model_is_instance_scoped(self):
+        """register_model on one instance should not leak to another."""
+        other = PricingConfig()
+        self.pricing_config.register_model("scoped-model", input_price=1, output_price=2)
+
+        with pytest.warns(UnknownModelWarning):
+            assert other.calculate_cost("scoped-model", 100, 100) is None

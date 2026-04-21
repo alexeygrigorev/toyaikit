@@ -10,17 +10,17 @@ from .utils import _TestCallback
 
 
 def get_anthropic_client():
-    """Create an AnthropicClient using environment variables."""
-    api_key = os.environ.get("ANTHROPIC_AUTH_TOKEN")
-    base_url = os.environ.get("ANTHROPIC_BASE_URL")
+    """Create an AnthropicClient pointed at z.ai's Anthropic-compatible endpoint."""
+    api_key = os.environ.get("ZAI_API_KEY") or os.environ.get("ANTHROPIC_AUTH_TOKEN")
+    base_url = os.environ.get("ANTHROPIC_BASE_URL", "https://api.z.ai/api/anthropic")
 
-    if not api_key or not base_url:
-        pytest.skip("ANTHROPIC_AUTH_TOKEN and ANTHROPIC_BASE_URL not set")
+    if not api_key:
+        pytest.skip("ZAI_API_KEY (or ANTHROPIC_AUTH_TOKEN) not set")
 
     return AnthropicClient(
         api_key=api_key,
         base_url=base_url,
-        model="claude-sonnet-4-5-20250929",
+        model="glm-5.1",
     )
 
 

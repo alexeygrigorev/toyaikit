@@ -129,13 +129,14 @@ class BaseToolUsingRunner(ChatRunner):
         developer_prompt: str = "You're a helpful assistant.",
         chat_interface: ChatInterface = None,
         llm_client: LLMClient = None,
+        pricing_config: PricingConfig = None,
     ):
         self.tools = tools
         self.developer_prompt = developer_prompt
         self.chat_interface = chat_interface
         self.llm_client = llm_client
         self.displaying_callback = DisplayingRunnerCallback(chat_interface)
-        self.pricing_config = PricingConfig()
+        self.pricing_config = pricing_config or PricingConfig()
 
     @abstractmethod
     def loop(
@@ -538,8 +539,7 @@ class OpenAIChatCompletionsRunner(BaseToolUsingRunner):
                         content_val = call_result.get("content")
                     callback.on_function_call(function_call, content_val)
 
-        pricing_config = PricingConfig()
-        cost = pricing_config.calculate_cost(
+        cost = self.pricing_config.calculate_cost(
             self.llm_client.model, total_input_tokens, total_output_tokens
         )
 

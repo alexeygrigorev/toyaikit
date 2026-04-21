@@ -1,8 +1,17 @@
+import warnings
 from dataclasses import dataclass
 from decimal import Decimal
+from typing import Union
 
 from genai_prices import Usage, calc_price
 from genai_prices import data as genai_data
+
+
+Price = Union[Decimal, float, int, str]
+
+
+class UnknownModelWarning(UserWarning):
+    """Warned when a model has no pricing data in genai_prices or fallback pricing."""
 
 
 @dataclass
@@ -38,8 +47,32 @@ class CostInfo:
 
 
 class PricingConfig:
+    def __init__(self):
+        self._fallback_pricing: dict[str, dict[str, Decimal]] = {
+            k: dict(v) for k, v in FALLBACK_PRICING.items()
+        }
+
+    def register_model(self, model: str, input_price: Price, output_price: Price) -> None:
+        """Register fallback pricing for a model not covered by genai_prices.
+
+        Prices are per 1M tokens (e.g. 0.6 for $0.60 per 1M tokens). Re-registering
+        a model overwrites the previous entry.
+
+        :param str model: Model name (case-insensitive)
+        :param Price input_price: Price per 1M input tokens
+        :param Price output_price: Price per 1M output tokens
+        """
+        self._fallback_pricing[model.lower()] = {
+            "input": Decimal(str(input_price)),
+            "output": Decimal(str(output_price)),
+        }
+
     def calculate_cost(self, model: str, input_tokens: int, output_tokens: int):
         """Calculate cost for a LLM API call based on token usage.
+
+        Falls back to user-registered pricing when the model is not known to
+        ``genai_prices``. Emits :class:`UnknownModelWarning` and returns ``None``
+        when no pricing is available.
 
         :param str model: Name of LLM model
         :param int input_tokens: Number of input tokens
@@ -61,16 +94,19 @@ class PricingConfig:
             )
 
         except LookupError:
-            # Try fallback pricing for models not in genai_prices
             model_key = model.lower()
-            if model_key in FALLBACK_PRICING:
-                pricing = FALLBACK_PRICING[model_key]
-                # Prices are per 1M tokens, so divide by 1M
+            if model_key in self._fallback_pricing:
+                pricing = self._fallback_pricing[model_key]
                 input_cost = (pricing["input"] * input_tokens) / Decimal("1000000")
                 output_cost = (pricing["output"] * output_tokens) / Decimal("1000000")
                 return CostInfo.create(input_cost=input_cost, output_cost=output_cost)
-            
-            # Return None for unknown models instead of raising error
+
+            warnings.warn(
+                f"No pricing data for model {model!r}. Register it with "
+                f"PricingConfig.register_model(...) to get cost calculations.",
+                UnknownModelWarning,
+                stacklevel=2,
+            )
             return None
 
     def all_available_models(self):
