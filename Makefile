@@ -23,15 +23,13 @@ format:
 publish-build:
 	uv run hatch build
 
-publish-test:
-	uv run hatch publish --repo test
-
-publish:
-	uv run hatch publish
-
 publish-clean:
 	rm -r dist/
 
-# Run the full publish script (tests, version bump, build, upload)
-publish-script:
-	uv run python scripts/publish.py
+# Release: tag the current version and push to trigger CI publish.
+# CI workflow: .github/workflows/publish.yml (on tag push v*)
+release:
+	@VERSION=$$(grep -E "^__version__" toyaikit/__version__.py | sed -E "s/.*['\"]([^'\"]+)['\"].*/\1/"); \
+	echo "Releasing v$$VERSION"; \
+	git tag "v$$VERSION"; \
+	git push origin "v$$VERSION"
